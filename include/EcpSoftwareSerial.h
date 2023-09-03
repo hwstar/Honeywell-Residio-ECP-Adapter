@@ -140,6 +140,7 @@ class EcpSoftwareSerial {
     void setParity(bool parity_enabled){
       noInterrupts();
       parity = parity_enabled;
+      rxParityError = false;
       interrupts();
     }
 
