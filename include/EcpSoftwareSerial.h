@@ -110,7 +110,7 @@ class EcpSoftwareSerial {
 
   public:
     // public methods
-
+    bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _inverse_logic;
     EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool inverse_logic = false, uint16_t debugPin = 0);
     virtual ~EcpSoftwareSerial();
     void begin();

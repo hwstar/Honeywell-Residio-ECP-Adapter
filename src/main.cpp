@@ -1,25 +1,25 @@
 #include <Arduino.h>
 #include <EcpSoftwareSerial.h>
-
+#include <HardwareSerial.h>
 
 EcpSoftwareSerial ecp(2, 3, false, 4);
+
+HardwareSerial Serial1(USART1);
 
 void setup() {
   ecp.begin();
   ecp.setParity(true);
+  Serial1.begin(115200);
 }
 
 void loop() {
   
-  ecp.write(0x00);
-  ecp.write(0x01);
-  ecp.write(0x03);
-  ecp.write(0x07);
-  ecp.write(0x0F);
-  ecp.write(0x1F);
-  ecp.write(0x3f);
-  ecp.write(0x7f);
-  ecp.write(0xff);
+  ecp.write(0x55);
+  if(ecp.available()){
+    uint8_t x = ecp.read();
+    Serial1.printf("%02X\n", x);
+  }
+
 
 
   delay(100);

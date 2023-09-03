@@ -261,7 +261,7 @@ inline void EcpSoftwareSerial::recv()
     }
   }
   else { // Case: 2 stop bits, with parity
-    if (--rx_tick_cnt <= 0) { // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reach 0 RX pin is considered
+    if (--rx_tick_cnt <= 0) { // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reaches 0 RX pin is considered
       bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _inverse_logic;
       if (rx_bit_cnt == -1) {  // rx_bit_cnt = -1 :  waiting for start bit
         if (!inbit) {
@@ -303,6 +303,8 @@ inline void EcpSoftwareSerial::recv()
           if(cp != inbit){
             rxParityError = true;
           }
+          rx_bit_cnt++; // Prepare for next bit
+          rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
 
 
       } else if (rx_bit_cnt == 9)  { // first stop bit
