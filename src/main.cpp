@@ -13,6 +13,17 @@ void setup() {
 }
 
 void loop() {
+
+ /*
+  // keypad poll test
+  while(ecp.getKeypadPollBusy())
+    ;
+  ecp.initiateKeypadPollSequence();
+  delay(100);
+  return;
+*/
+
+/*
   static uint8_t tx_byte;
   tx_byte = (uint8_t) int(random());
   
@@ -26,7 +37,13 @@ void loop() {
       Serial1.printf("Bad!\n");
   }
 
-delay(10);
+*/
+ ecp.write(0x55, false);
+
+
+
+
+delay(100);
 
 }
 

@@ -51,7 +51,10 @@ uint32_t EcpSoftwareSerial::tx_buffer = 0;
 int32_t EcpSoftwareSerial::tx_bit_cnt = 0;
 uint32_t EcpSoftwareSerial::rx_buffer = 0;
 int32_t EcpSoftwareSerial::rx_bit_cnt = -1; // rx_bit_cnt = -1 :  waiting for start bit
-
+uint8_t volatile EcpSoftwareSerial::pollState = POLL_SM_IDLE;
+uint8_t volatile EcpSoftwareSerial::pollResult = 0;
+uint8_t volatile EcpSoftwareSerial::pollByteCount = 0;
+uint32_t volatile EcpSoftwareSerial::startBitLength = 1;
 
 
 
@@ -135,23 +138,112 @@ inline void EcpSoftwareSerial::setTX()
 
 inline void EcpSoftwareSerial::setRX()
 {
-  pinMode(_receivePin, _tx_inverse_logic ? INPUT_PULLDOWN : INPUT_PULLUP); // pullup for normal logic!
+  pinMode(_receivePin, INPUT); // No pull up or pull down. This is handled by the external voltage divider
 }
 
 //
-// The transmit  routine called by the interrupt handler
+// The poll routine called by the interrupt handler
+//
+
+inline void EcpSoftwareSerial::do_poll()
+{
+  volatile int32_t x;
+  tx_bit_cnt++;
+  switch(pollState){
+    case POLL_SM_IDLE:
+      break;
+
+    case POLL_SM_START_SEQ:
+      tx_bit_cnt = 0;
+      // Set TxD low
+      if(_tx_inverse_logic){
+        LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+      } else {
+        LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+      }
+      pollState = POLL_SM_WAIT_START_DONE;
+      break;
+
+    case POLL_SM_WAIT_START_DONE:
+      x = POLL_START_TICKS;
+      if(tx_bit_cnt >= x){
+        tx_bit_cnt = 0;
+        pollByteCount = 0;
+        // Set TxD high
+        if(_tx_inverse_logic){
+          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+        } else {
+          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+        }
+        pollState = POLL_SM_SEND_ZERO_BYTE;
+      }
+      break;
+
+    case POLL_SM_SEND_ZERO_BYTE:
+      x = POLL_ZERO_TICKS;
+      if(tx_bit_cnt >= x){
+        // Set TxD low
+        if(_tx_inverse_logic){
+          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+        } else {
+          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+        }
+        tx_bit_cnt = 0;
+        pollState = POLL_SM_SEND_BYTE_DELAY;
+      }
+      break;
+
+    case POLL_SM_SEND_BYTE_DELAY:
+      if(tx_bit_cnt >= WAIT_TICKS_WRITE_DELAY) {
+        pollByteCount++;
+        tx_bit_cnt = 0;
+
+        // Set TxD high
+        if(_tx_inverse_logic){
+          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+        } else {
+          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+        }
+        if(pollByteCount >= 3){
+          // Done
+          this->active_out = nullptr;
+          pollState = POLL_SM_IDLE;
+        } else {
+          pollState = POLL_SM_SEND_ZERO_BYTE;
+        }
+      }
+      break;
+
+    default:
+      this->active_out = nullptr;
+      pollState = POLL_SM_IDLE;
+
+  }
+
+
+}
+
+//
+// The transmit routine called by the interrupt handler
 //
 
 inline void EcpSoftwareSerial::send()
 {
-  if (--tx_tick_cnt <= 0) { // if tx_tick_cnt > 0 interrupt is discarded. Only when tx_tick_cnt reach 0 we set TX pin.
-    if (tx_bit_cnt++ < tx_total_bits) { // ECP-specific tx_bit_cnt: 11 (11: = 1 start + 8 bits + 2 stop) or 12: (1 start + 8 bits + even parity + 2 stop)
+  if (--tx_tick_cnt <= 0) { // if tx_tick_cnt > 0 interrupt is discarded. Only when the tx_tick_cnt reaches 0 do we set TX pin.
+    if (tx_bit_cnt < tx_total_bits) { // ECP-specific tx_bit_cnt: 11 (11: = 1 start + 8 bits + 2 stop) or 12: (1 start + 8 bits + even parity + 2 stop)
       // send data (including start and stop bits)
       if (tx_buffer & 1) {
         LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
       } else {
         LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
       }
+      if(startBitLength){
+        startBitLength--;
+      }
+      if(startBitLength){
+        return; // Long start bit in process
+      }
+      tx_bit_cnt++;
       tx_buffer >>= 1;
       tx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE tick to send next bit
     } else { // Transmission finished
@@ -174,17 +266,13 @@ inline void EcpSoftwareSerial::recv()
   if(parity == false){ // Case 2 stop bits, no parity
    
     if (--rx_tick_cnt <= 0) { // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reach 0 RX pin is considered
-      if(_debugPin){
-        // Toggle debug pin to show where the sample occured on the scope
-
-      }
       bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _rx_inverse_logic;
       if (rx_bit_cnt == -1) {  // rx_bit_cnt = -1 :  waiting for start bit
         if (!inbit) {
           #ifdef DEBUG_RX_SAMPLING
           if (_debugPin) {
             if(_debug_pin_toggle_state) {
-              LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
+              LL_GPIO_SetOutputPin(_debugPinPort,_debugPinNumber);
             } else {
               LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
             }
@@ -235,7 +323,12 @@ inline void EcpSoftwareSerial::recv()
           LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
         }
         _debug_pin_toggle_state ^= 1;
-      }
+      }         // Set TxD high
+          if(_tx_inverse_logic){
+            LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+          } else {
+            LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+          }
       #endif
         // data bits
         rx_buffer >>= 1;
@@ -371,7 +464,11 @@ inline void EcpSoftwareSerial::handleInterrupt()
     active_in->recv();
   }
   if (active_out) {
-    active_out->send();
+    if(pollState == POLL_SM_IDLE)
+      active_out->send();
+    else{
+      active_out->do_poll();
+    }
   }
 
 }
@@ -395,6 +492,8 @@ EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, 
   _receive_buffer_head(0)
 {
 
+ 
+
   // Set up debug pin if requested to do so
   if(_debugPin){
     _debugPinPort = digitalPinToPort(_debugPin);
@@ -413,7 +512,7 @@ EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, 
     _Error_Handler("ERROR: invalid receive pin number\n", -1);
   }
 
-
+      active_out = nullptr;
 }
 
 //
@@ -434,7 +533,7 @@ void EcpSoftwareSerial::begin()
   if(_debugPin){
     pinMode(_debugPin, OUTPUT);
   }
-  setSpeed(4800);
+  setSpeed((uint32_t) ECP_BAUD_RATE);
   setTX();
   setRX();
   listen();
@@ -464,12 +563,12 @@ int EcpSoftwareSerial::available()
   return (_receive_buffer_tail + _SS_MAX_RX_BUFF - _receive_buffer_head) % _SS_MAX_RX_BUFF;
 }
 
-size_t EcpSoftwareSerial::write(uint8_t b)
+size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
 {
   // wait for previous transmit to complete
   _output_pending = 1;
   
-  // Block if transmitting
+  // Block if already transmitting
   while (active_out)
     ;
 
@@ -494,12 +593,14 @@ size_t EcpSoftwareSerial::write(uint8_t b)
     tx_total_bits = 11;
   }
   // If output inverted
-  if (_rx_inverse_logic) {
+  if (_tx_inverse_logic) {
     tx_buffer = ~tx_buffer;
   }
   tx_bit_cnt = 0;
   tx_tick_cnt = OVERSAMPLE;
   _output_pending = 0;
+  startBitLength = (first_byte == true) ? START_BIT_FIRST_BYTE_TICKS : 1;
+
   // make us active
   active_out = this;
   return 1;
@@ -521,6 +622,27 @@ int EcpSoftwareSerial::peek()
 
   // Read from "head"
   return _receive_buffer[_receive_buffer_head];
+}
+
+bool EcpSoftwareSerial::initiateKeypadPollSequence(){
+ 
+  // Return if active
+  if(getKeypadPollBusy()){
+    return false;
+  }
+
+  // Block if transmitting
+  while (active_out)
+    ;
+
+  // Turn off parity
+  setParity(false);
+  // Flush RX buffer
+  rx_flush();
+  // Set poll state to active
+  pollState = POLL_SM_START_SEQ;
+  active_out = this;
+  return true;
 }
 
 void EcpSoftwareSerial::setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority)

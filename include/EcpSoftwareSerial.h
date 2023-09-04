@@ -39,17 +39,26 @@
 * Definitions
 ******************************************************************************/
 
-#define _SS_MAX_RX_BUFF 64 // RX buffer size
-#define OVERSAMPLE 3 // in RX, Timer will generate interruption OVERSAMPLE time during a bit. Thus OVERSAMPLE ticks in a bit. (interrupt not synchronized with edge).
-#define TIMER_SERIAL TIM4  // ECP-specific
-#define ONE_BIT_DELAY_US 208
-#define ONE_BYTE_DELAY_US 2030
-#define DELAY_BETWEEN_POLL_WRITES_US 1015
-#define DELAY_TO_POLL_KEYBOARDS_US 4060
-
 #define DEBUG_RX_SAMPLING // Enables Debug GPIO for RX pin sampling in ISR
 
-enum {POLL_SM_IDLE=0, POLL_SM_START_SEQ, POLL_SM_WAIT_START_DONE};
+
+#define _SS_MAX_RX_BUFF 64 // RX buffer size
+#define OVERSAMPLE 3 // in RX, Timer will generate interruption OVERSAMPLE time during a bit. Thus OVERSAMPLE ticks in a bit. (interrupt not synchronized with edge).
+#define TIMER_SERIAL TIM4  
+#define DELAY_BETWEEN_POLL_WRITES 1015.0E-6
+#define DELAY_TO_POLL_KEYPADS 13000.0E-6
+#define DELAY_LONG_START_BIT 4000.0E-6
+#define DELAY_ZERO_BYTE 1874.7E-6
+#define ECP_BAUD_RATE 4800.0
+
+
+#define POLL_START_TICKS ((unsigned int) (DELAY_TO_POLL_KEYPADS/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
+#define START_BIT_FIRST_BYTE_TICKS ((unsigned int) (DELAY_LONG_START_BIT/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
+#define POLL_ZERO_TICKS ((unsigned int) (DELAY_ZERO_BYTE/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
+#define WAIT_TICKS_WRITE_DELAY ((unsigned int) (DELAY_BETWEEN_POLL_WRITES/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
+
+
+enum {POLL_SM_IDLE=0, POLL_SM_START_SEQ, POLL_SM_WAIT_START_DONE, POLL_SM_SEND_ZERO_BYTE, POLL_SM_SEND_BYTE_DELAY};
 
 
 class EcpSoftwareSerial {
@@ -81,7 +90,6 @@ class EcpSoftwareSerial {
     volatile bool rxParityError;
     volatile uint8_t tx_total_bits;
    
-    bool initialised;
 
     static HardwareTimer timer_bit;
     static EcpSoftwareSerial *active_listener;
@@ -93,10 +101,16 @@ class EcpSoftwareSerial {
     static int32_t tx_bit_cnt;
     static uint32_t rx_buffer;
     static int32_t rx_bit_cnt;
+    static volatile uint32_t startBitLength;
+    static volatile uint8_t pollState;
+    static volatile uint8_t pollResult;
+    static volatile uint8_t pollByteCount;
+    
     
 
     // private methods
     void setSpeed(uint32_t speed);
+    void do_poll();
     void send();
     void recv();
     void setTX();
@@ -125,7 +139,7 @@ class EcpSoftwareSerial {
     }
     int peek();
 
-    size_t write(uint8_t byte);
+    size_t write(uint8_t byte, bool first_byte = false);
     int read();
     int available();
     void rx_flush();
@@ -148,8 +162,26 @@ class EcpSoftwareSerial {
       return res;
 
     }
-    void initiatePollSequence();
 
+    // Initiate keypad polling sequence
+    // Returns true if successful.
+    bool initiateKeypadPollSequence();
+
+    // Return true if we are in the middle of polling the keypads
+    bool getKeypadPollBusy() {
+      noInterrupts();
+      bool pollBusy =  (pollState != POLL_SM_IDLE);
+      interrupts();
+      return pollBusy;
+
+    }
+
+    // Get the result of the last poll operation
+    uint8_t getPollResult() {
+      return pollResult;
+    }
+
+    // Set the interrupt priority of the ECP software UART
     static void setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority);
 
 };
