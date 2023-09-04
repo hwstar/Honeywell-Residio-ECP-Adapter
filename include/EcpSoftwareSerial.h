@@ -67,7 +67,8 @@ class EcpSoftwareSerial {
     uint32_t _debugPinNumber;
 
     uint16_t _buffer_overflow: 1;
-    uint16_t _inverse_logic: 1;
+    uint16_t _rx_inverse_logic: 1;
+    uint16_t _tx_inverse_logic: 1;
     uint16_t _output_pending: 1;
     uint16_t _debug_pin_toggle_state: 1;
     
@@ -77,20 +78,15 @@ class EcpSoftwareSerial {
     volatile uint8_t _receive_buffer_tail;
     volatile uint8_t _receive_buffer_head;
     bool parity;
-    volatile uint8_t poll_state;
     volatile bool rxParityError;
     volatile uint8_t tx_total_bits;
    
+    bool initialised;
 
-    uint32_t delta_start = 0;
-
-    // static data
-    static bool initialised;
     static HardwareTimer timer_bit;
     static EcpSoftwareSerial *active_listener;
     static EcpSoftwareSerial *volatile active_out;
     static EcpSoftwareSerial *volatile active_in;
-    static EcpSoftwareSerial *volatile active_poll;
     static int32_t tx_tick_cnt;
     static volatile int32_t rx_tick_cnt;
     static uint32_t tx_buffer;
@@ -103,15 +99,13 @@ class EcpSoftwareSerial {
     void setSpeed(uint32_t speed);
     void send();
     void recv();
-    void polling_handler();
     void setTX();
     void setRX();
     static void handleInterrupt();
 
   public:
     // public methods
-    bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _inverse_logic;
-    EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool inverse_logic = false, uint16_t debugPin = 0);
+    EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool rx_inverse_logic = false, bool tx_inverse_logic = false, uint16_t debugPin = 0);
     virtual ~EcpSoftwareSerial();
     void begin();
     bool listen();

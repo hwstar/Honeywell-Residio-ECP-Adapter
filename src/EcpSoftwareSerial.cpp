@@ -44,7 +44,6 @@ HardwareTimer EcpSoftwareSerial::timer_bit(TIM4);
 EcpSoftwareSerial *EcpSoftwareSerial::active_listener = nullptr;
 EcpSoftwareSerial *volatile EcpSoftwareSerial::active_out = nullptr;
 EcpSoftwareSerial *volatile EcpSoftwareSerial::active_in = nullptr;
-EcpSoftwareSerial *volatile EcpSoftwareSerial::active_poll = nullptr;
 
 int32_t EcpSoftwareSerial::tx_tick_cnt = 0; // OVERSAMPLE ticks needed for a bit
 int32_t volatile EcpSoftwareSerial::rx_tick_cnt = 0;  // OVERSAMPLE ticks needed for a bit
@@ -126,7 +125,7 @@ bool EcpSoftwareSerial::stopListening()
 
 inline void EcpSoftwareSerial::setTX()
 {
-  if (_inverse_logic) {
+  if (_tx_inverse_logic) {
     LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
   } else {
     LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
@@ -136,19 +135,7 @@ inline void EcpSoftwareSerial::setTX()
 
 inline void EcpSoftwareSerial::setRX()
 {
-  pinMode(_receivePin, _inverse_logic ? INPUT_PULLDOWN : INPUT_PULLUP); // pullup for normal logic!
-}
-
-
-//
-// The polling handler.
-// This generates the keypad polling sequence
-//
-
-
-inline void EcpSoftwareSerial::polling_handler()
-{
-
+  pinMode(_receivePin, _tx_inverse_logic ? INPUT_PULLDOWN : INPUT_PULLUP); // pullup for normal logic!
 }
 
 //
@@ -191,7 +178,7 @@ inline void EcpSoftwareSerial::recv()
         // Toggle debug pin to show where the sample occured on the scope
 
       }
-      bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _inverse_logic;
+      bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _rx_inverse_logic;
       if (rx_bit_cnt == -1) {  // rx_bit_cnt = -1 :  waiting for start bit
         if (!inbit) {
           #ifdef DEBUG_RX_SAMPLING
@@ -262,7 +249,7 @@ inline void EcpSoftwareSerial::recv()
   }
   else { // Case: 2 stop bits, with parity
     if (--rx_tick_cnt <= 0) { // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reaches 0 RX pin is considered
-      bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _inverse_logic;
+      bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _rx_inverse_logic;
       if (rx_bit_cnt == -1) {  // rx_bit_cnt = -1 :  waiting for start bit
         if (!inbit) {
           // got start bit
@@ -383,9 +370,7 @@ inline void EcpSoftwareSerial::handleInterrupt()
   if (active_in) {
     active_in->recv();
   }
-  if(active_poll)
-    active_poll->polling_handler();
-  else if (active_out) {
+  if (active_out) {
     active_out->send();
   }
 
@@ -393,7 +378,7 @@ inline void EcpSoftwareSerial::handleInterrupt()
 //
 // Constructor
 //
-EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool inverse_logic /* = false */, uint16_t debugPin /* = 0 */) :
+EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool _rx_inverse_logic /* = false */, bool _tx_inverse_logic /* = false */, uint16_t debugPin /* = 0 */) :
   _receivePin(receivePin),
   _transmitPin(transmitPin),
   _debugPin(debugPin),
@@ -402,7 +387,9 @@ EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, 
   _transmitPinPort(digitalPinToPort(transmitPin)),
   _transmitPinNumber(STM_LL_GPIO_PIN(digitalPinToPinName(transmitPin))),
   _buffer_overflow(false),
-  _inverse_logic(inverse_logic),
+  _rx_inverse_logic(_rx_inverse_logic),
+  _tx_inverse_logic(_tx_inverse_logic),
+
   _output_pending(0),
   _receive_buffer_tail(0),
   _receive_buffer_head(0)
@@ -507,7 +494,7 @@ size_t EcpSoftwareSerial::write(uint8_t b)
     tx_total_bits = 11;
   }
   // If output inverted
-  if (_inverse_logic) {
+  if (_rx_inverse_logic) {
     tx_buffer = ~tx_buffer;
   }
   tx_bit_cnt = 0;
