@@ -102,7 +102,7 @@ bool EcpSoftwareSerial::listen()
     while (active_out);
     if (active_listener != nullptr) {      rx_bit_cnt++; // Prepare for next bit
         rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
-      active_listener->stopListening();
+        
     }
     rx_tick_cnt = 1; // 1 : next interrupt will decrease rx_tick_cnt to 0 which means RX pin level will be considered.
     rx_bit_cnt = -1; // rx_bit_cnt = -1 :  waiting for start bit
@@ -475,7 +475,7 @@ inline void EcpSoftwareSerial::handleInterrupt()
 //
 // Constructor
 //
-EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool _rx_inverse_logic /* = false */, bool _tx_inverse_logic /* = false */, uint16_t debugPin /* = 0 */) :
+EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool rx_inverse_logic /* = false */, bool tx_inverse_logic /* = false */, uint16_t debugPin /* = 0 */) :
   _receivePin(receivePin),
   _transmitPin(transmitPin),
   _debugPin(debugPin),
@@ -484,8 +484,8 @@ EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, 
   _transmitPinPort(digitalPinToPort(transmitPin)),
   _transmitPinNumber(STM_LL_GPIO_PIN(digitalPinToPinName(transmitPin))),
   _buffer_overflow(false),
-  _rx_inverse_logic(_rx_inverse_logic),
-  _tx_inverse_logic(_tx_inverse_logic),
+  _rx_inverse_logic(rx_inverse_logic),
+  _tx_inverse_logic(tx_inverse_logic),
 
   _output_pending(0),
   _receive_buffer_tail(0),
