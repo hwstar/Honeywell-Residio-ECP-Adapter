@@ -154,6 +154,8 @@ inline void EcpSoftwareSerial::do_poll()
       break;
 
     case POLL_SM_START_SEQ:
+      // Turn off parity
+      setParity(false);
       tx_bit_cnt = 0;
       // Set TxD low
       if(_tx_inverse_logic){
@@ -206,6 +208,8 @@ inline void EcpSoftwareSerial::do_poll()
         }
         if(pollByteCount >= 3){
           // Done
+          // Turn on parity
+          setParity(true);
           this->active_out = nullptr;
           pollState = POLL_SM_IDLE;
         } else {
@@ -635,8 +639,6 @@ bool EcpSoftwareSerial::initiateKeypadPollSequence(){
   while (active_out)
     ;
 
-  // Turn off parity
-  setParity(false);
   // Flush RX buffer
   rx_flush();
   // Set poll state to active
