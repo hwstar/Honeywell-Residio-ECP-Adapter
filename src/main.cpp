@@ -2,9 +2,17 @@
 #include <EcpSoftwareSerial.h>
 #include <HardwareSerial.h>
 
-EcpSoftwareSerial ecp(2, 3, false, false, 4);
+EcpSoftwareSerial ecp(2, 3, true, true, 4);
 
 HardwareSerial Serial1(USART1);
+
+void send_f6(uint8_t keypad_address) {
+  ecp.notifyFirstByte();
+  ecp.write(0xf6);
+  ecp.write(keypad_address);
+}
+
+
 
 void setup() {
   ecp.begin();
@@ -13,37 +21,33 @@ void setup() {
 }
 
 void loop() {
+volatile uint32_t x;
 
- /*
-  // keypad poll test
-  while(ecp.getKeypadPollBusy())
-    ;
-  ecp.initiateKeypadPollSequence();
-  delay(100);
-  return;
-*/
-
-/*
-  static uint8_t tx_byte;
-  tx_byte = (uint8_t) int(random());
-  
-  ecp.write(tx_byte);
-  while(!ecp.available());
-  uint8_t x = ecp.read();
-  if(ecp.getParityError()){
-    Serial1.printf("Parity Error!\n");
-  }
-  else if(x != tx_byte) {
-      Serial1.printf("Bad!\n");
-  }
-
-*/
- ecp.write(0x55, false);
+// Math check (using debugger breakpoints)
+x = TICKS_TX_REQUEST;
+x = TICKS_POLL_START;
+x = TICKS_POLL_LOW;
+x = TICKS_POLL_HIGH;
+x = DELAY_KEYPAD_POLL_TO_F6_MS;
 
 
 
 
-delay(100);
+ecp.initiateKeypadPollSequence();
+
+while(ecp.getKeypadPollBusy())
+  ;
+
+delay(DELAY_KEYPAD_POLL_TO_F6_MS);
+send_f6(0x10);
+while(ecp.getTxDone());
+  ;
+ecp.setTxPinState(true);
+
+
+ 
+
+delay(400);
 
 }
 

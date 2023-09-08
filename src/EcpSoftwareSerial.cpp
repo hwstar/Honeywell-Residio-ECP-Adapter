@@ -147,7 +147,15 @@ inline void EcpSoftwareSerial::setRX()
 
 inline void EcpSoftwareSerial::do_poll()
 {
-  volatile int32_t x;
+  #ifdef DEBUG_POLL_TICKS
+  if(_debug_pin_toggle_state) {
+    LL_GPIO_SetOutputPin(_debugPinPort,_debugPinNumber);
+  } else {
+    LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
+  }
+  _debug_pin_toggle_state ^= 1;
+  #endif
+
   tx_bit_cnt++;
   switch(pollState){
     case POLL_SM_IDLE:
@@ -158,55 +166,39 @@ inline void EcpSoftwareSerial::do_poll()
       setParity(false);
       tx_bit_cnt = 0;
       // Set TxD low
-      if(_tx_inverse_logic){
-        LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
-      } else {
-        LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
-      }
+      LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
       pollState = POLL_SM_WAIT_START_DONE;
       break;
 
     case POLL_SM_WAIT_START_DONE:
-      x = POLL_START_TICKS;
-      if(tx_bit_cnt >= x){
+      if(tx_bit_cnt >= TICKS_TX_REQUEST){
         tx_bit_cnt = 0;
         pollByteCount = 0;
         // Set TxD high
-        if(_tx_inverse_logic){
-          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
-        } else {
-          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
-        }
+        LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
         pollState = POLL_SM_SEND_ZERO_BYTE;
       }
       break;
 
     case POLL_SM_SEND_ZERO_BYTE:
-      x = POLL_ZERO_TICKS;
-      if(tx_bit_cnt >= x){
+      if(tx_bit_cnt >= TICKS_POLL_HIGH){
         // Set TxD low
-        if(_tx_inverse_logic){
-          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
-        } else {
-          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
-        }
+        LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
         tx_bit_cnt = 0;
         pollState = POLL_SM_SEND_BYTE_DELAY;
       }
       break;
 
     case POLL_SM_SEND_BYTE_DELAY:
-      if(tx_bit_cnt >= WAIT_TICKS_WRITE_DELAY) {
+      if(tx_bit_cnt >= TICKS_POLL_LOW) {
         pollByteCount++;
         tx_bit_cnt = 0;
 
         // Set TxD high
-        if(_tx_inverse_logic){
-          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
-        } else {
-          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
-        }
-        if(pollByteCount >= 3){
+ 
+        LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+      
+        if(pollByteCount >= 2){
           // Done
           // Turn on parity
           setParity(true);
@@ -215,6 +207,21 @@ inline void EcpSoftwareSerial::do_poll()
         } else {
           pollState = POLL_SM_SEND_ZERO_BYTE;
         }
+      }
+      break;
+
+    case POLL_SM_START_TX_REQUEST:
+      //
+      // Starts the first byte delay seqence
+      LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+      tx_bit_cnt = 0;
+      pollState = POLL_SM_CHECK_TX_REQUEST;
+      break;
+
+    case POLL_SM_CHECK_TX_REQUEST:
+      if(tx_bit_cnt >= TICKS_TX_REQUEST) {
+        this->active_out = nullptr;
+        pollState = POLL_SM_IDLE;
       }
       break;
 
@@ -254,7 +261,7 @@ inline void EcpSoftwareSerial::send()
       tx_tick_cnt = 1;
       if (_output_pending) {
         active_out = nullptr;
-      } else if (tx_bit_cnt > tx_total_bits) {
+      } else if (tx_bit_cnt >= tx_total_bits) {
         active_out = nullptr;
       }
     }
@@ -464,6 +471,7 @@ inline void EcpSoftwareSerial::recv()
 /* static */
 inline void EcpSoftwareSerial::handleInterrupt()
 {
+
   if (active_in) {
     active_in->recv();
   }
@@ -576,6 +584,25 @@ size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
   while (active_out)
     ;
 
+  if(first_byte == true){
+    // Initialize the polling state machine
+    noInterrupts();
+    pollState = POLL_SM_START_TX_REQUEST;
+    active_out = this;
+    interrupts();
+
+    // Block while waiting the prescribed delay
+
+    while(true){
+      uint8_t ps;
+      noInterrupts();
+      ps = pollState;
+      interrupts();
+      if(ps == POLL_SM_IDLE){
+        break;
+      }
+    }
+  }
 
   if(parity){ // Case for parity enabled
     // Calculate parity bit
@@ -603,7 +630,7 @@ size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
   tx_bit_cnt = 0;
   tx_tick_cnt = OVERSAMPLE;
   _output_pending = 0;
-  startBitLength = (first_byte == true) ? START_BIT_FIRST_BYTE_TICKS : 1;
+  startBitLength = 1;
 
   // make us active
   active_out = this;
@@ -645,6 +672,30 @@ bool EcpSoftwareSerial::initiateKeypadPollSequence(){
   pollState = POLL_SM_START_SEQ;
   active_out = this;
   return true;
+}
+
+void EcpSoftwareSerial::notifyFirstByte() {
+  LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+  delay(4);
+}
+
+
+bool EcpSoftwareSerial::getTxDone() {
+  if(active_out){
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+void EcpSoftwareSerial::setTxPinState(bool state){
+  if(state){
+     LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+  }
+  else {
+     LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+  }
 }
 
 void EcpSoftwareSerial::setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority)

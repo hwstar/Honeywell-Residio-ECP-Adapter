@@ -39,26 +39,34 @@
 * Definitions
 ******************************************************************************/
 
-#define DEBUG_RX_SAMPLING // Enables Debug GPIO for RX pin sampling in ISR
+//#define DEBUG_RX_SAMPLING // Enables Debug GPIO for RX pin sampling in ISR
+//#define DEBUG_POLL_TICKS
 
 
 #define _SS_MAX_RX_BUFF 64 // RX buffer size
-#define OVERSAMPLE 3 // in RX, Timer will generate interruption OVERSAMPLE time during a bit. Thus OVERSAMPLE ticks in a bit. (interrupt not synchronized with edge).
 #define TIMER_SERIAL TIM4  
-#define DELAY_BETWEEN_POLL_WRITES 1015.0E-6
-#define DELAY_TO_POLL_KEYPADS 13000.0E-6
-#define DELAY_LONG_START_BIT 4000.0E-6
-#define DELAY_ZERO_BYTE 1874.7E-6
+
+#define OVERSAMPLE 3 // in RX, Timer will generate interruption OVERSAMPLE time during a bit. Thus OVERSAMPLE ticks in a bit. (interrupt not synchronized with edge).
 #define ECP_BAUD_RATE 4800.0
+#define TIME_ONE_TICK (1 / (ECP_BAUD_RATE * OVERSAMPLE))
+#define ONE_BIT_TIME (1 / ECP_BAUD_RATE)
+#define DELAY_POLL_LOW 1015.0E-6
+#define DELAY_POLL_HIGH (2.0 * DELAY_POLL_LOW)
+#define DELAY_POLL_KEYPADS 13000.0E-6
+#define DELAY_TX_REQUEST 4000.0E-6
+#define DELAY_ZERO_BYTE (9 * ONE_BIT_TIME)
+#define DELAY_KEYPAD_POLL_TO_F6_MS 55 // Crucial for getting response from the keypad.
+
+#define TICKS_TX_REQUEST ((unsigned int) (DELAY_TX_REQUEST / TIME_ONE_TICK))
+#define TICKS_POLL_START ((unsigned int) (DELAY_POLL_KEYPADS / TIME_ONE_TICK))
+#define TICKS_POLL_LOW ((unsigned int) (DELAY_POLL_LOW / TIME_ONE_TICK))
+#define TICKS_POLL_HIGH ((unsigned int) (DELAY_POLL_HIGH / TIME_ONE_TICK))
 
 
-#define POLL_START_TICKS ((unsigned int) (DELAY_TO_POLL_KEYPADS/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
-#define START_BIT_FIRST_BYTE_TICKS ((unsigned int) (DELAY_LONG_START_BIT/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
-#define POLL_ZERO_TICKS ((unsigned int) (DELAY_ZERO_BYTE/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
-#define WAIT_TICKS_WRITE_DELAY ((unsigned int) (DELAY_BETWEEN_POLL_WRITES/(1/(ECP_BAUD_RATE * OVERSAMPLE))))
-
-
-enum {POLL_SM_IDLE=0, POLL_SM_START_SEQ, POLL_SM_WAIT_START_DONE, POLL_SM_SEND_ZERO_BYTE, POLL_SM_SEND_BYTE_DELAY};
+enum {POLL_SM_IDLE=0, POLL_SM_START_SEQ, 
+POLL_SM_WAIT_START_DONE, POLL_SM_SEND_ZERO_BYTE, 
+POLL_SM_SEND_BYTE_DELAY, POLL_SM_START_TX_REQUEST,
+POLL_SM_CHECK_TX_REQUEST};
 
 
 class EcpSoftwareSerial {
@@ -180,6 +188,12 @@ class EcpSoftwareSerial {
     uint8_t getPollResult() {
       return pollResult;
     }
+
+    void notifyFirstByte();
+
+    void setTxPinState(bool state);
+
+    bool getTxDone();
 
     // Set the interrupt priority of the ECP software UART
     static void setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority);
