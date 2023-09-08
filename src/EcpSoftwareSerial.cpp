@@ -704,3 +704,20 @@ void EcpSoftwareSerial::setInterruptPriority(uint32_t preemptPriority, uint32_t 
 }
 
 
+/*
+* Calculate the checksum of a packet 
+*/
+
+uint8_t EcpSoftwareSerial::calculateChecksum(uint8_t *packet, uint8_t length) {
+  uint8_t checksum = 0;
+  uint8_t i;
+  for(i = 0; i < length; i++) {
+    checksum += packet[i];
+  }
+  // Two's complement
+  checksum = ~checksum;
+  checksum++;
+  return checksum;
+}
+
+

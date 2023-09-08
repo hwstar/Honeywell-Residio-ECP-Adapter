@@ -56,6 +56,9 @@
 #define DELAY_TX_REQUEST 4000.0E-6
 #define DELAY_ZERO_BYTE (9 * ONE_BIT_TIME)
 #define DELAY_KEYPAD_POLL_TO_F6_MS 55 // Crucial for getting response from the keypad.
+#define DELAY_POLL_INACTIVE_MS 400 // Time between polling events
+#define DELAY_RX_TIMEOUT_MS 100
+
 
 #define TICKS_TX_REQUEST ((unsigned int) (DELAY_TX_REQUEST / TIME_ONE_TICK))
 #define TICKS_POLL_START ((unsigned int) (DELAY_POLL_KEYPADS / TIME_ONE_TICK))
@@ -192,6 +195,8 @@ class EcpSoftwareSerial {
     void notifyFirstByte();
 
     void setTxPinState(bool state);
+
+    uint8_t calculateChecksum(uint8_t *packet, uint8_t length);
 
     bool getTxDone();
 

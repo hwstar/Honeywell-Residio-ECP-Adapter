@@ -47,7 +47,7 @@ ecp.setTxPinState(true);
 
  
 
-delay(400);
+delay(DELAY_POLL_INACTIVE_MS);
 
 }
 
