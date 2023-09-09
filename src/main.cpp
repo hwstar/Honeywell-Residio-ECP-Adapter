@@ -8,6 +8,12 @@ EcpSoftwareSerial ecp(2, 3, true, true, 4);
 Sequencer seq;
 HardwareSerial Serial1(USART1);
 
+
+void message_callback(uint8_t *packet, uint8_t length){
+}
+
+
+
 void setup() {
   // Math check (using debugger breakpoints)
   volatile uint32_t x;
@@ -18,7 +24,7 @@ void setup() {
   x = DELAY_KEYPAD_POLL_TO_F6_MS;
 
   ecp.begin();
-  seq.begin(&ecp);
+  seq.begin(&ecp, message_callback);
 }
 
 

@@ -171,7 +171,7 @@ inline void EcpSoftwareSerial::do_poll()
       break;
 
     case POLL_SM_WAIT_START_DONE:
-      if(tx_bit_cnt >= TICKS_TX_REQUEST){
+      if(tx_bit_cnt >= TICKS_POLL_START){
         tx_bit_cnt = 0;
         pollByteCount = 0;
         // Set TxD high
