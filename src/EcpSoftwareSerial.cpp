@@ -539,6 +539,11 @@ EcpSoftwareSerial::~EcpSoftwareSerial()
 // Public methods
 //
 
+
+/*
+* Start up the software UART
+*/
+
 void EcpSoftwareSerial::begin()
 {
   // Set debug pin mode if defined as something other than 0
@@ -550,6 +555,12 @@ void EcpSoftwareSerial::begin()
   setRX();
   listen();
 }
+
+
+/*
+* Shut down the software UART
+*/
+
 
 void EcpSoftwareSerial::end()
 {
@@ -570,10 +581,19 @@ int EcpSoftwareSerial::read()
   return d;
 }
 
+/*
+* Return true if there's something in the receive buffer
+*/
+
+
 int EcpSoftwareSerial::available()
 {
   return (_receive_buffer_tail + _SS_MAX_RX_BUFF - _receive_buffer_head) % _SS_MAX_RX_BUFF;
 }
+
+/*
+* Write one byte to the software UART.
+*/
 
 size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
 {
@@ -637,12 +657,34 @@ size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
   return 1;
 }
 
+
+/*
+* Write a number of bytes to the software uart
+*/
+
+void EcpSoftwareSerial::writeBytes(uint8_t *buffer, uint8_t length) {
+
+  for(uint8_t i = 0; i < length; i++){
+    write(buffer[i]);
+  }
+
+}
+
+/*
+* Flush the software uart receiver
+*/
+
 void EcpSoftwareSerial::rx_flush()
 {
   noInterrupts();
   _receive_buffer_head = _receive_buffer_tail = 0;
   interrupts();
 }
+
+/*
+* Peek at what is in the receive buffer
+*/
+
 
 int EcpSoftwareSerial::peek()
 {
@@ -655,7 +697,12 @@ int EcpSoftwareSerial::peek()
   return _receive_buffer[_receive_buffer_head];
 }
 
-bool EcpSoftwareSerial::initiateKeypadPollSequence(){
+/*
+* Initiate a keypad polling sequence
+*/
+
+
+bool EcpSoftwareSerial::initiateKeypadPollSequence() {
  
   // Return if active
   if(getKeypadPollBusy()){
@@ -674,10 +721,33 @@ bool EcpSoftwareSerial::initiateKeypadPollSequence(){
   return true;
 }
 
-void EcpSoftwareSerial::notifyFirstByte() {
-  LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
-  delay(4);
+/*
+*
+* This tells the keypad
+* that a new command is coming
+*/
+
+bool EcpSoftwareSerial::initiateNewCommand() {
+  // Return if active
+
+   // Return if active
+  if(getKeypadPollBusy()){
+    return false;
+  }
+
+  // Block if transmitting
+  while (active_out)
+    ;
+  // Set poll state to Active
+  pollState = POLL_SM_START_TX_REQUEST;
+  active_out = this;
+  return true;
 }
+
+
+/*
+* Get the state of the software UART transmitter
+*/
 
 
 bool EcpSoftwareSerial::getTxDone() {
@@ -688,6 +758,11 @@ bool EcpSoftwareSerial::getTxDone() {
     return false;
   }
 }
+
+
+/*
+* Set the transmit pin state
+*/
 
 void EcpSoftwareSerial::setTxPinState(bool state){
   if(state){
@@ -708,11 +783,11 @@ void EcpSoftwareSerial::setInterruptPriority(uint32_t preemptPriority, uint32_t 
 * Calculate the checksum of a packet 
 */
 
-uint8_t EcpSoftwareSerial::calculateChecksum(uint8_t *packet, uint8_t length) {
+uint8_t EcpSoftwareSerial::calculateChecksum(uint8_t *check_packet, uint8_t length) {
   uint8_t checksum = 0;
   uint8_t i;
   for(i = 0; i < length; i++) {
-    checksum += packet[i];
+    checksum += check_packet[i];
   }
   // Two's complement
   checksum = ~checksum;

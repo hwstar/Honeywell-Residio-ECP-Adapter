@@ -154,8 +154,11 @@ class EcpSoftwareSerial {
     int read();
     int available();
     void rx_flush();
+
+
+    void writeBytes(uint8_t *buffer, uint8_t length); 
    
-    // ECPspecific set parity
+    // Set parity
     void setParity(bool parity_enabled){
       noInterrupts();
       parity = parity_enabled;
@@ -178,6 +181,8 @@ class EcpSoftwareSerial {
     // Returns true if successful.
     bool initiateKeypadPollSequence();
 
+    bool initiateNewCommand();
+
     // Return true if we are in the middle of polling the keypads
     bool getKeypadPollBusy() {
       noInterrupts();
@@ -186,18 +191,14 @@ class EcpSoftwareSerial {
       return pollBusy;
 
     }
-
-    // Get the result of the last poll operation
-    uint8_t getPollResult() {
-      return pollResult;
-    }
-
-    void notifyFirstByte();
-
+    // Sets the state (high or low) of the software uart TX pin
     void setTxPinState(bool state);
 
+    // Calculate the checksum of a packet
     uint8_t calculateChecksum(uint8_t *packet, uint8_t length);
 
+
+    // Return whether or not the transmitter is done transmitting a byte
     bool getTxDone();
 
     // Set the interrupt priority of the ECP software UART
