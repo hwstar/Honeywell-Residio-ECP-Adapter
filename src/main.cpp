@@ -41,6 +41,7 @@ void loop() {
     seq.formatDisplayPacket(&packet);
     seq.setLCDLine1(&packet, "SP8 Alarm System",16);
     seq.setLCDLine2(&packet, "Test 9/10/23", 12 );
+    seq.setArmedAway(&packet, true);
     seq.setLcdBackLight(&packet, true);
     seq.submitDisplayPacket(&packet);
   }

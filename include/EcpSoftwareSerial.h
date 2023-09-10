@@ -1,5 +1,5 @@
 /*
- * SoftwareSerial.h (formerly NewSoftSerial.h)
+ * ECPSoftwareSerial.h (formerly SoftwareSerial.h)
  *
  * Multi-instance software serial library for Arduino/Wiring
  * -- Interrupt-driven receive and other improvements by ladyada
@@ -30,6 +30,14 @@
  * The latest version of this library can always be found at
  * http://arduiniana.org.
  */
+
+/*
+*
+* Credit for reverse engineering and documenting the Honeywell ECP protocol goes to:
+*
+* Tom Vickers: https://github.com/jsb5151/Arduino2keypad/blob/master/docs/Keybus%20Protocol.pdf
+*
+*/
 
 # pragma once
 

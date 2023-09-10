@@ -1,5 +1,5 @@
 /*
- * SoftwareSerial.cpp (formerly NewSoftSerial.cpp)
+ * ECPSoftwareSerial.cpp (formerly SoftwareSerial.cpp)
  *
  * Multi-instance software serial library for Arduino/Wiring
  * -- Interrupt-driven receive and other improvements by ladyada
@@ -12,6 +12,7 @@
  * -- 20MHz processor support by Garrett Mace (http://www.macetech.com)
  * -- ATmega1280/2560 support by Brett Hagman (http://www.roguerobotics.com/)
  * -- STM32 support by Armin van der Togt
+ * -- Modified for Ademco ECP protocol by Steve Rodgers (http://github.com/hwstar)
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

@@ -1,3 +1,6 @@
+
+
+
 #include <Arduino.h>
 #include <Sequencer.h>
 #include <EcpSoftwareSerial.h>
@@ -11,12 +14,12 @@
 #define LCD_BACKLIGHT_BIT 0x80
 #define INIT_MESSAGE_BIT 0x80
 
-
+ 
 /*
 * Read with time out
 */
 
-uint8_t Sequencer::readBytes(uint8_t *buffer, uint8_t byte_count){
+uint8_t Sequencer::_readBytes(uint8_t *buffer, uint8_t byte_count){
     readStartTime = millis();
     uint8_t i;
     for (i = 0; i < byte_count;){
@@ -54,7 +57,7 @@ void Sequencer::begin(EcpSoftwareSerial *ecp_obj, void (*keypad_action)(uint8_t 
 
 }
 
-void Sequencer::update() {
+void Sequencer::_handleECP() {
 
     // ECP object sanity check
     if(pEcp == nullptr || pEcp == NULL){
@@ -67,14 +70,14 @@ void Sequencer::update() {
             // Wait for poll interval timer to expire
             if(millis() - pollInactiveTime > DELAY_POLL_INACTIVE_MS) {
                 pEcp->initiateKeypadPollSequence();
-                state = SEQ_STATE_WAIT_POLL_CYCLE;
+                state = SEQ_STATE_WAIT_POLL_CYCLE; 
             }
             break;
 
         case SEQ_STATE_WAIT_POLL_CYCLE:
             // Wait for interrupt state machine to do its job
             if(!pEcp->getKeypadPollBusy()) {
-                pollByteCount = readBytes(pollBuffer, 3);
+                pollByteCount = _readBytes(pollBuffer, 3);
                 if(pollByteCount == 3) {
                     // See if there's a keypad requiring service
                     if(pollBuffer[2] != 0xFF) {
@@ -86,7 +89,7 @@ void Sequencer::update() {
                                 // We found a keypad needing service
                                 break;
                             }
-                            // Next keypad bit
+                            // Next keypad bit 
                             requesting_keypads >>= 1;
 
                         if(keypadAddress < 24) {
@@ -128,7 +131,7 @@ void Sequencer::update() {
 
         case SEQ_STATE_WAIT_F6_TIMER:
             // Wait for the poll sequence to finish
-            if(!pEcp->getKeypadPollBusy()) {
+            if(!pEcp->getKeypadPollBusy()) { 
                 // Flush RX buffer
  
                 // We can now send the F6 command
@@ -149,7 +152,7 @@ void Sequencer::update() {
 
         case SEQ_STATE_WAIT_KEYPAD_RESPONSE:
             // Read the first two bytes
-            if(readBytes(packet, 2) == 2){
+            if(_readBytes(packet, 2) == 2){
                 // First byte is address and packet sequence number
                 addressAndPacketSequenceNumber = packet[0];
                 // Second byte is number of bytes which follow including checksum
@@ -163,7 +166,7 @@ void Sequencer::update() {
                 // We need to strip it off when saving the packet length.
                 packetLength = packet[1] & ~INIT_MESSAGE_BIT;
                 // We get the rest of the bytes here
-                if (readBytes(packet + 2, packetLength) != packetLength) {
+                if (_readBytes(packet + 2, packetLength) != packetLength) {
                     // We timed out on the packet, reset and start over
                     state = SEQ_STATE_FINISH_UP;
                     return;
@@ -230,7 +233,7 @@ void Sequencer::update() {
 
             break;
 
-
+ 
         case SEQ_WAIT_BEFORE_F7:
             // Wait before sending F7 packet
             if((((uint32_t) millis()) - pollWaitTime) >= DELAY_KEYPAD_POLL_TO_F6_MS) {
@@ -283,6 +286,30 @@ void Sequencer::update() {
 
 }
 
+/*
+* This function handles the code buffers for the individual keypads 
+*/
+
+
+void Sequencer::_handleKeypads() {
+
+}
+
+/*
+* This must be called periodically from the loop() function in main.cpp 
+*/
+
+void Sequencer::update() {
+    _handleECP();
+    _handleKeypads();
+}
+
+
+/*
+* Format display packet from a chunk of randomly initialized memory
+*/
+
+
 void Sequencer::formatDisplayPacket(void *dp) {
     Packet_F7 *f7  = (Packet_F7 *) dp;
     // Zero out the struct to start
@@ -301,15 +328,25 @@ void Sequencer::formatDisplayPacket(void *dp) {
 }
 
 
+/*
+* Allow keypad specific addressing
+*/
+
 void Sequencer::setKeypadAddressBits(void *dp, uint8_t address_bits) {
     ((Packet_F7 * ) dp)->keypadAddress = address_bits;
 }
   
+/*
+* Cause the keypad to chime in a defined manner
+*/
 
 void Sequencer::setChimeMode(void *dp, uint8_t mode) {
     ((Packet_F7 * ) dp)->chime = mode;
 }
 
+/*
+* Send the alarm stay state to the keypad
+*/
 
 void Sequencer::setArmedStay(void *dp, bool state) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
@@ -320,6 +357,10 @@ void Sequencer::setArmedStay(void *dp, bool state) {
         packet->readyArmedStay &= ~ARMED_STAY_BIT;
     }
 }
+
+/*
+* Set the ready LED on the keypad
+*/
 
 void Sequencer::setReady(void *dp, bool state) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
@@ -332,6 +373,10 @@ void Sequencer::setReady(void *dp, bool state) {
     
 }
 
+/*
+* Set the chime flag. English displays seem to not do anything with this
+*/
+
 void Sequencer::setChimeFlag(void *dp, bool state) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
     if(state){
@@ -342,6 +387,10 @@ void Sequencer::setChimeFlag(void *dp, bool state) {
     }
 
 }
+
+/*
+* Set the AC power flag. English displays seem to not do anything with this
+*/
 
 void Sequencer::setAcPowerFlag(void *dp, bool state) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
@@ -354,16 +403,25 @@ void Sequencer::setAcPowerFlag(void *dp, bool state) {
 
 }
 
+
+/*
+* Set the Armed LED on the keypad/.
+*/
+
 void Sequencer::setArmedAway(void *dp, bool state) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
     if(state){
-        packet->readyArmedStay |= ARMED_AWAY_BIT;
+        packet->statusBits |= ARMED_AWAY_BIT;
     }
     else {
-        packet->readyArmedStay &= ~ARMED_AWAY_BIT;
+        packet->statusBits &= ~ARMED_AWAY_BIT;
     }
 
 }
+
+/*
+* Set the backlight for the LCD display
+*/
 
 void Sequencer::setLcdBackLight(void *dp, bool state){
     Packet_F7 *packet = (Packet_F7 * ) dp;
@@ -375,6 +433,12 @@ void Sequencer::setLcdBackLight(void *dp, bool state){
     }
 
 }
+
+
+/*
+* Set the content for Line 1 on the keypad
+*/
+
 
 void Sequencer::setLCDLine1(void *dp, const char *line, uint8_t length) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
@@ -393,6 +457,10 @@ void Sequencer::setLCDLine1(void *dp, const char *line, uint8_t length) {
 
 }
 
+/*
+* Set the content for Line 2 on the keypad
+*/
+
 void Sequencer::setLCDLine2(void *dp, const char *line, uint8_t length) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
 
@@ -403,6 +471,16 @@ void Sequencer::setLCDLine2(void *dp, const char *line, uint8_t length) {
     memcpy(packet->lcdLine2, line, l);
 
 }
+
+
+/*
+* Submit the display packet for transmission to the displays.
+*
+* Will return false if a prior transmission is in progress else true.
+*/
+
+
+
 
 bool Sequencer::submitDisplayPacket(void *dp) {
     if(displayUpdateBusy){
@@ -417,7 +495,9 @@ bool Sequencer::submitDisplayPacket(void *dp) {
     return true;
 }
 
-
+/*
+* Return true if we are busy transmitting a display message
+*/
 
 bool Sequencer::getDisplayUpdateBusy() {
     return displayUpdateBusy;
@@ -425,27 +505,31 @@ bool Sequencer::getDisplayUpdateBusy() {
 }
 
 
-void Sequencer::getParityErrorCount(bool reset){
+
+uint32_t Sequencer::getParityErrorCount(bool reset){
     uint32_t x = rxParityErrors;
     if(reset){
         rxParityErrors = 0;
     }
+    return x;
 
 }
 
-void Sequencer::getChecksumErrorCount(bool reset){
+uint32_t Sequencer::getChecksumErrorCount(bool reset){
     uint32_t x = rxChecksumErrors;
     if(reset){
         rxChecksumErrors = 0;
     }
+    return x;
     
 }
 
-void Sequencer::getTimeOutErrorCount(bool reset){
+uint32_t Sequencer::getTimeOutErrorCount(bool reset){
     uint32_t x = rxTimeoutErrors;
     if(reset){
         rxTimeoutErrors = 0;
     }
+    return x;
     
 }
 

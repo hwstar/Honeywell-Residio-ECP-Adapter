@@ -83,12 +83,10 @@ private:
 
     keypad_callback pCallback;
    
-    
 
-
-
-
-    uint8_t readBytes(uint8_t *buffer, uint8_t byte_count);
+    void _handleECP();
+    void _handleKeypads();
+    uint8_t _readBytes(uint8_t *buffer, uint8_t byte_count);
 
 
 public:
@@ -127,11 +125,11 @@ public:
 
     bool getDisplayUpdateBusy();
 
-    void getParityErrorCount(bool reset = false);
+    uint32_t getParityErrorCount(bool reset = false);
 
-    void getChecksumErrorCount(bool reset = false);
+    uint32_t getChecksumErrorCount(bool reset = false);
     
-    void getTimeOutErrorCount(bool reset = false);
+    uint32_t getTimeOutErrorCount(bool reset = false);
 
     
 };
