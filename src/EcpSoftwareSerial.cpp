@@ -751,7 +751,7 @@ bool EcpSoftwareSerial::initiateNewCommand() {
 */
 
 
-bool EcpSoftwareSerial::getTxDone() {
+bool EcpSoftwareSerial::getTxBusy() {
   if(active_out){
     return true;
   }

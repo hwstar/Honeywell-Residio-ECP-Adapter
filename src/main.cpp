@@ -4,13 +4,16 @@
 #include <Sequencer.h>
 
 
-EcpSoftwareSerial ecp(2, 3, true, true, 4);
-Sequencer seq;
-HardwareSerial Serial1(USART1);
+EcpSoftwareSerial ecp(2, 3, true, true, 4); // UART for the Honeywell ECP bus
+Sequencer seq; // Keypad sequencer
+HardwareSerial Serial1(USART1); // Uart used to communicate with the SP8 sensor panel
 
 uint32_t test_timer;
 
-void message_callback(uint8_t *packet, uint8_t length){
+void message_callback(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action){
+  volatile uint32_t x;
+  x = 42;
+
 }
 
 

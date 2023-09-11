@@ -22,7 +22,7 @@
 uint8_t Sequencer::_readBytes(uint8_t *buffer, uint8_t byte_count){
     readStartTime = millis();
     uint8_t i;
-    for (i = 0; i < byte_count;){
+    for (i = 0; i < byte_count;) {
         if (pEcp->available()) {
             buffer[i++] = pEcp->read();
         }
@@ -35,13 +35,43 @@ uint8_t Sequencer::_readBytes(uint8_t *buffer, uint8_t byte_count){
     return i;
 }
 
+// Translate keypad digit to ASCII.
+
+uint8_t Sequencer::_translateKeypadDigit(uint8_t digit){
+    if(digit <= 9) { 
+        return digit + '0';
+    }
+    else if(digit == 0x0A) {
+        return  '*';
+    }
+    else if(digit == 0x0B) {
+        return '#';
+    }
+    else if (digit == 0x1C) {
+        return 'A';
+    }
+    else if (digit == 0x1D) {
+        return 'B';
+    }
+    else if (digit == 0x1E) {
+        return 'C';
+    }
+    else if (digit == 0x1F) {
+        return 'D';
+    }
+    else {
+        return 'U';
+    }
+}
+
+
 
 /*
-* Setup function. Call in main's setup funtion to initistate = SEQ_STATE_FINISH_UP; // DEBUGalize the sequencer.
+* Setup function. 
 */
 
 
-void Sequencer::begin(EcpSoftwareSerial *ecp_obj, void (*keypad_action)(uint8_t *buffer, uint8_t length)) {
+void Sequencer::begin(EcpSoftwareSerial *ecp_obj, void (*keypad_action)(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action)) {
     pEcp = ecp_obj;
     pCallback = keypad_action;
     state = SEQ_STATE_IDLE;
@@ -49,7 +79,12 @@ void Sequencer::begin(EcpSoftwareSerial *ecp_obj, void (*keypad_action)(uint8_t 
     rxChecksumErrors = 0;
     rxTimeoutErrors = 0;
     pollByteCount = 0;
+    codeDigitsReceived = false;
     validPacket=false;
+    for(int i = 0; i < MAX_KEYPADS; i++) {
+        memset(&codeData[i], 0, sizeof(Code_Info));
+    }
+
     pollInactiveTime = millis();
   
 
@@ -139,7 +174,7 @@ void Sequencer::_handleECP() {
                 packet[1] = keypadAddress;
                 pEcp->writeBytes(packet, 2);
                 //Wait for last byte to TX
-                while(pEcp->getTxDone())
+                while(pEcp->getTxBusy())
                     ;
                 // Set TX true so keypad can respond
                 pEcp->setParity(true); // Clear parity error flag
@@ -157,17 +192,18 @@ void Sequencer::_handleECP() {
                 addressAndPacketSequenceNumber = packet[0];
                 // Second byte is number of bytes which follow including checksum
                 // See if it will fit in the packet buffer
-                if(packet[1] >= (sizeof(packet) - 2)){
+                // The initial message sent by the keypad will have the high bit set.
+                // We need to strip it off when saving the packet length.
+                packetLength = packet[1] & ~INIT_MESSAGE_BIT;
+                if(packetLength >= (sizeof(packet) - 2)){
                     // It's too big.  Abort
                     state = SEQ_STATE_FINISH_UP;
                     return;
                 }
-                // The initial message sent by the keypad will have the high bit set.
-                // We need to strip it off when saving the packet length.
-                packetLength = packet[1] & ~INIT_MESSAGE_BIT;
                 // We get the rest of the bytes here
                 if (_readBytes(packet + 2, packetLength) != packetLength) {
                     // We timed out on the packet, reset and start over
+                    packetLength = 0;
                     state = SEQ_STATE_FINISH_UP;
                     return;
                 }
@@ -179,7 +215,7 @@ void Sequencer::_handleECP() {
                     return;
                 }
                 // Verify the checksum of the packet
-                uint8_t res = pEcp->calculateChecksum(packet, packet[1] + 2);
+                uint8_t res = pEcp->calculateChecksum(packet, packetLength + 2);
                 if(res){
                     // Bad checksum
                     rxChecksumErrors++;
@@ -203,8 +239,8 @@ void Sequencer::_handleECP() {
             if(!pEcp->getKeypadPollBusy()){
                 // Send the keypad address and packet sequence number
                 pEcp->write(addressAndPacketSequenceNumber);
-                while(pEcp->getTxDone())
-                    ;
+                while(pEcp->getTxBusy())
+                    ;          
                 pEcp->setParity(true); // Clear parity error flag
                 pEcp->setTxPinState(true);  
                 state = SEQ_STATE_FINISH_UP;
@@ -212,15 +248,36 @@ void Sequencer::_handleECP() {
             break;
 
         case SEQ_STATE_FINISH_UP:
+            if(pollByteCount != 3){
+                // If 3 poll bytes weren't received, skip this state and check for a display request
+                state = SEQ_CHECK_DISPLAY_REQUEST;
+                return;
+            }
+
             if(pCallback){
                 if(validPacket) {
-                    (*pCallback)(packet, packetLength + 2);
-                }
-                else {
-                    (*pCallback)(NULL, 0);
+                    if(packet[1] & 0x80) {
+                        // Keypad present packet
+                        (*pCallback)(KEYPAD_RECORD_TYPE_PRESENT, packet[0] & 0x3F, packet[1] & 0x7F, packet, 0 );
+                     }
+                    else {
+                        // Keypad digits packet
+                        // Copy the code digits we received to the codeDigits buffer for processing by the code buffer state machine.
+                        uint8_t num_code_digits = packetLength - 1; // Exclude the checksum byte
+                        uint8_t byte_count = (num_code_digits > CODE_DIGIT_BUFFER_SIZE) ? CODE_DIGIT_BUFFER_SIZE : num_code_digits;
+                        
+                        // Copy to code digits buffer
+                        memcpy(codeDigits, packet + 2, byte_count);
+                        // Set the number of digits received
+                        codeDigitsReceived = byte_count; 
+                    }
                 }
             }
             validPacket=false;
+            state = SEQ_CHECK_DISPLAY_REQUEST;
+            break;
+
+        case SEQ_CHECK_DISPLAY_REQUEST:
             // If a display message packet is pending
             // Send it here
             if(displayUpdateBusy){
@@ -230,7 +287,6 @@ void Sequencer::_handleECP() {
             else {
                 state = SEQ_STATE_WAIT_NEXT_POLL_TIME;
             }
-
             break;
 
  
@@ -247,8 +303,8 @@ void Sequencer::_handleECP() {
         case SEQ_WAIT_INIT_COMMAND:
             // Wait for new command sequence to complete
             if(!pEcp->getKeypadPollBusy()){
-                index_f7 = 0;
-                pEcp->write(displayPacketF7[index_f7++]);
+                indexF7 = 0;
+                pEcp->write(displayPacketF7[indexF7++]);
                 state = SEQ_WAIT_FOR_F7_SENT;
             }
             break;
@@ -257,9 +313,12 @@ void Sequencer::_handleECP() {
 
         case SEQ_WAIT_FOR_F7_SENT:
             // Check for transmit done
-            if(pEcp->getTxDone()) {
-                pEcp->write(displayPacketF7[index_f7++]);
-                if(index_f7 >= sizeof(Packet_F7)) {
+            if(!pEcp->getTxBusy()) {
+                pEcp->write(displayPacketF7[indexF7++]);
+                // Wait for last byte to TX
+                while(pEcp->getTxBusy())
+                    ;               
+                if(indexF7 >= sizeof(Packet_F7)) {
                     pEcp->setTxPinState(true);  
                     displayUpdateBusy = false;
                     state = SEQ_STATE_WAIT_NEXT_POLL_TIME;
@@ -288,10 +347,119 @@ void Sequencer::_handleECP() {
 
 /*
 * This function handles the code buffers for the individual keypads 
+* It stores the code digits for each keypad until the code digit length is reached
+* then waits for the command digit which follows the code. Once is has all of this
+* information, it calls the callback function supplied when begin was called.
 */
 
 
 void Sequencer::_handleKeypads() {
+    for(int i = 0; i < MAX_KEYPADS; i++){
+        switch(codeData[i].state) {
+            case CODE_STATE_IDLE:
+                if(codeDigitsReceived){
+                    codeData[i].timer = millis();
+                    codeData[i].state = CODE_STATE_CODE_INTERDIGIT;
+                }
+                break;
+
+            case CODE_STATE_CODE_INTERDIGIT:
+                if(((uint32_t) millis()) - codeData[i].timer >= CODE_INTERDIGIT_TIME) {
+                    // Max interdigit time reached, reset the code buffer and start over
+                    codeData[i].length = 0;
+                    codeDigitsReceived = 0;
+                    codeData[i].state = CODE_STATE_IDLE;
+                }
+                if(codeDigitsReceived){
+                    // Check for the panic function keys
+                    uint8_t key_index;
+                    for(key_index = 0; key_index < codeDigitsReceived; key_index++){
+                        if ((codeDigits[i] >= 0x1C) && (codeDigits[i] <= 0x1F)) {
+                            // Quirk: A zero is returned on the second press of any panic key
+                            // after the first press before the display contents are updated. 
+                            // This will be ignored.
+                            
+                            // Call the callback function and indicate a panic key was pressed
+                            (*pCallback)(KEYPAD_RECORD_TYPE_PANIC, i + 16, 0, NULL, _translateKeypadDigit(codeDigits[i]));
+                            codeData[i].length = 0;
+                            codeDigitsReceived = 0;
+                            codeData[i].state = CODE_STATE_IDLE;
+                            return;
+                        }
+                    }
+
+                    // We got normal keys
+                    if (codeData[i].length + codeDigitsReceived > MAX_CODE_LENGTH) { // Case 1: number of digits received exceeds the max code length
+                        // Copy the code digits
+                        uint8_t copy_digits = MAX_CODE_LENGTH - codeData[i].length;
+                        memcpy(codeData[i].buffer + codeData[i].length, codeDigits, copy_digits);
+                        // Update length
+                        codeData[i].length = MAX_CODE_LENGTH;
+                        // Check to see if there is at least one more digit for the command
+                        // and if so, process it here.
+                        if(((int) codeDigitsReceived) - ((int) copy_digits > 0)) {
+                            // We received all of the code and command digits
+                            codeData[i].command = codeDigits[copy_digits];
+                            codeDigitsReceived = 0;
+                            codeData[i].state = CODE_STATE_CALL_CALLBACK;
+
+                        }
+                        else {
+                            // We received all of the code digits, but not the command digit
+                            codeData[i].timer = millis();
+                            codeDigitsReceived = 0;
+                            codeData[i].state = CODE_STATE_COMMAND_INTERDIGIT;
+                        }
+                    }
+                    else { // Case 2: number of digits received is equal to or less than the max code length
+                        memcpy(codeData[i].buffer + codeData[i].length, codeDigits, codeDigitsReceived);
+                        codeData[i].length += codeDigitsReceived;
+                        codeDigitsReceived = 0;
+                        if(codeData[i].length >= MAX_CODE_LENGTH){
+                            codeData[i].timer = millis();
+                            codeData[i].state = CODE_STATE_COMMAND_INTERDIGIT;
+                        }
+                    }
+                }
+                break;
+
+            case CODE_STATE_COMMAND_INTERDIGIT:
+                // Wait for the last command digit
+                if(((uint32_t) millis()) - codeData[i].timer >= CODE_INTERDIGIT_TIME) {
+                    // Max interdigit time reached, reset the code buffer and start over
+                    codeDigitsReceived = 0;
+                    codeData[i].length = 0;
+                    codeData[i].state = CODE_STATE_IDLE;
+                }
+                if(codeDigitsReceived){
+                    codeData[i].command = codeDigits[0];
+                    codeDigitsReceived = 0;
+                    codeData[i].state = CODE_STATE_CALL_CALLBACK;
+                }
+                break;
+
+
+            case CODE_STATE_CALL_CALLBACK:
+                // Translate keypad digits to ASCII
+                for(int j = 0; j < codeData[i].length; j++){
+                    codeData[i].buffer[j] = _translateKeypadDigit(codeData[i].buffer[j]);
+                }
+                codeData[i].command = _translateKeypadDigit(codeData[i].command);
+
+                // Call the callback function with the keypad data
+                (*pCallback)(KEYPAD_RECORD_TYPE_CODE, i + 16, codeData[i].length, codeData[i].buffer, codeData[i].command);
+                codeData[i].length = 0;
+                codeData[i].state = CODE_STATE_IDLE;
+                break;
+        
+            
+            default:
+                codeDigitsReceived = 0;
+                codeData[i].length = 0;
+                codeData[i].state = CODE_STATE_IDLE;
+                break;
+        }
+    }
 
 }
 
