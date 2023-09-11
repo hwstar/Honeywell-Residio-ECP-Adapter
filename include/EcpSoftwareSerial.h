@@ -206,8 +206,8 @@ class EcpSoftwareSerial {
     uint8_t calculateChecksum(uint8_t *packet, uint8_t length);
 
 
-    // Return whether or not the transmitter is done transmitting a byte
-    bool getTxDone();
+    // Return whether or not the transmitter is busy transmitting a byte
+    bool getTxBusy();
 
     // Set the interrupt priority of the ECP software UART
     static void setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority);
