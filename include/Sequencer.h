@@ -74,6 +74,7 @@ private:
     uint8_t pollBuffer[3];
     uint8_t packetLength;
     uint8_t indexF7;
+    uint8_t codeDigitsKeypadAddress;
     uint8_t codeDigitsReceived;
     uint8_t codeDigits[CODE_DIGIT_BUFFER_SIZE];
     uint8_t packet[PACKET_BUFFER_SIZE];

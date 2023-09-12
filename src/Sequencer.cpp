@@ -119,13 +119,15 @@ void Sequencer::_handleECP() {
                         // Get the binary address of the keypad
                         uint8_t requesting_keypads = pollBuffer[2];
             
-                        for(keypadAddress = 16; keypadAddress < 24; keypadAddress ++)
+                        for(keypadAddress = 16; keypadAddress < 24; keypadAddress ++) {
                             if((requesting_keypads & 1) == 0) {
                                 // We found a keypad needing service
                                 break;
                             }
                             // Next keypad bit 
                             requesting_keypads >>= 1;
+                        }
+                    
 
                         if(keypadAddress < 24) {
                             // We have a keypad to service
@@ -268,6 +270,8 @@ void Sequencer::_handleECP() {
                         
                         // Copy to code digits buffer
                         memcpy(codeDigits, packet + 2, byte_count);
+                        // Copy the keypad address
+                        codeDigitsKeypadAddress = keypadAddress;
                         // Set the number of digits received
                         codeDigitsReceived = byte_count; 
                     }
@@ -357,7 +361,8 @@ void Sequencer::_handleKeypads() {
     for(int i = 0; i < MAX_KEYPADS; i++){
         switch(codeData[i].state) {
             case CODE_STATE_IDLE:
-                if(codeDigitsReceived){
+
+                if(codeDigitsReceived && (codeDigitsKeypadAddress == i + 16)){
                     codeData[i].timer = millis();
                     codeData[i].state = CODE_STATE_CODE_INTERDIGIT;
                 }
@@ -370,17 +375,17 @@ void Sequencer::_handleKeypads() {
                     codeDigitsReceived = 0;
                     codeData[i].state = CODE_STATE_IDLE;
                 }
-                if(codeDigitsReceived){
+                if(codeDigitsReceived && (codeDigitsKeypadAddress == i + 16)) {
                     // Check for the panic function keys
                     uint8_t key_index;
                     for(key_index = 0; key_index < codeDigitsReceived; key_index++){
-                        if ((codeDigits[i] >= 0x1C) && (codeDigits[i] <= 0x1F)) {
+                        if ((codeDigits[key_index] >= 0x1C) && (codeDigits[key_index] <= 0x1F)) {
                             // Quirk: A zero is returned on the second press of any panic key
                             // after the first press before the display contents are updated. 
                             // This will be ignored.
                             
                             // Call the callback function and indicate a panic key was pressed
-                            (*pCallback)(KEYPAD_RECORD_TYPE_PANIC, i + 16, 0, NULL, _translateKeypadDigit(codeDigits[i]));
+                            (*pCallback)(KEYPAD_RECORD_TYPE_PANIC, i + 16, 0, NULL, _translateKeypadDigit(codeDigits[key_index]));
                             codeData[i].length = 0;
                             codeDigitsReceived = 0;
                             codeData[i].state = CODE_STATE_IDLE;
@@ -431,7 +436,8 @@ void Sequencer::_handleKeypads() {
                     codeData[i].length = 0;
                     codeData[i].state = CODE_STATE_IDLE;
                 }
-                if(codeDigitsReceived){
+
+                if(codeDigitsReceived && (codeDigitsKeypadAddress == i + 16)){
                     codeData[i].command = codeDigits[0];
                     codeDigitsReceived = 0;
                     codeData[i].state = CODE_STATE_CALL_CALLBACK;
