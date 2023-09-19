@@ -7,6 +7,8 @@
 
 #define MAX_CODE_LENGTH 4
 
+#define LOG_LEVEL LOG_LEVEL_DEBUG
+
 /*
 *  Pin assignments
 */

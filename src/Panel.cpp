@@ -5,6 +5,8 @@
 #include esphome/core/helpers.h
 #endif
 
+#define TAG Panel
+
 /*
 * Calculate a 16 bit CRC
 */
@@ -238,7 +240,8 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     _makeTxDataPacket(sizeof(PanelKeyboardEvent), &pke.record_data);
 
     bool res = _queueTxPacket(_txDataQueuedPacket);
-
-    // Todo: Handle TX buffer pool full here - need logging facility
+    if(res){
+        LOG_ERROR(TAG, "Buffer pool overflow error");
+    }
 
 }
