@@ -1,21 +1,17 @@
 #pragma once
 #include <Arduino.h>
 #include <EcpSoftwareSerial.h>
+#include <common.h>
 
 #define SEQ_READ_TIMEOUT_TIME_MS 100
 
 #define KEYPAD_DISPLAY_LINE_SIZE 16
 #define DISPLAY_PACKET_SIZE_F7 48
 #define PACKET_BUFFER_SIZE 64
-#define MAX_CODE_LENGTH 4
 #define CODE_DIGIT_BUFFER_SIZE  (MAX_CODE_LENGTH + 1)
 #define MAX_KEYPADS 8
 #define CODE_INTERDIGIT_TIME 10000
 
-
-enum {KEYPAD_RECORD_TYPE_PRESENT=0, KEYPAD_RECORD_TYPE_CODE, KEYPAD_RECORD_TYPE_PANIC };
-
-enum {CHIME_NONE=0, CHIME_ONCE, CHIME_TWICE, CHIME_THREE_TIMES, CHIME_FAST_REPEATING, CHIME_SLOW_REPEATING, CHIME_UNUSED, CHIME_LOUD};
 
 enum {SEQ_STATE_IDLE = 0, SEQ_STATE_WAIT_POLL_CYCLE, SEQ_STATE_WAIT_BEFORE_F6, 
 SEQ_STATE_WAIT_F6_TIMER, SEQ_STATE_WAIT_KEYPAD_RESPONSE, SEQ_STATE_WAIT_ACK_COMMAND, 
@@ -55,7 +51,7 @@ typedef struct Code_Info {
     uint8_t command;
     uint8_t length;
     uint8_t buffer[MAX_CODE_LENGTH];
-} Code_Info;
+} __attribute__((aligned(1))) Code_Info;
 
 
 class Sequencer {
