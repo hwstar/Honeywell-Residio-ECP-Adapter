@@ -1,11 +1,14 @@
 #include <common.h>
 #include <easylog.h>
 #include <Panel.h>
+#include <Sequencer.h>
 #ifdef USE_ESP32
 #include esphome/core/helpers.h
 #endif
 
 #define TAG Panel
+
+extern Sequencer seq;
 
 /*
 * Calculate a 16 bit CRC
@@ -41,21 +44,23 @@ uint16_t Panel::_crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t
 * Make a TX packet from payload data
 */
  
-void Panel::_makeTxDataPacket(uint8_t data_len, void *data) {
+void Panel::_makeTxDataPacket(PanelKeyboardEvent *pke) {
 
-    uint8_t clipped_data_len = (data_len > MAX_PANEL_PAYLOAD) ? MAX_PANEL_PAYLOAD : data_len;
-    PanelPacketHeader *p = (PanelPacketHeader *) data;
-    uint8_t *data_start = ((uint8_t *) data) + sizeof(PanelPacketHeader);
-    uint8_t *crc_start =  ((uint8_t *) data) + sizeof(PanelPacketHeader) + clipped_data_len;
+
+    PanelPacketHeader *p = (PanelPacketHeader *) _txDataQueuedPacket;
+    
+    uint8_t clipped_data_len = ((pke->record_data_length + 4) > MAX_PANEL_PAYLOAD) ? MAX_PANEL_PAYLOAD : pke->record_data_length + 4;
+    uint8_t *data_start = ((uint8_t *) _txDataQueuedPacket) + sizeof(PanelPacketHeader);
+    uint8_t *crc_start =  ((uint8_t *) _txDataQueuedPacket) + sizeof(PanelPacketHeader) + clipped_data_len;
     
     // Set header fields
     p->type = PT_DATA_SHORT;
     p->seq_num = _txSeqNum++;
     p->payload_len = clipped_data_len;
     // Copy the data
-    memcpy(data_start, data, clipped_data_len);
+    memcpy(data_start, pke, clipped_data_len);
     // Calculate CRC
-    uint16_t crc = _crc16((uint8_t *) &_txDataQueuedPacket, data_len + 4, CRC_INIT_VEC);
+    uint16_t crc = _crc16((uint8_t *) &_txDataQueuedPacket, clipped_data_len, CRC_INIT_VEC);
     // Insert CRC
     crc_start[0] = (uint8_t) crc;
     crc_start[1] = (uint8_t) (crc >> 8);
@@ -206,10 +211,11 @@ bool Panel::_stuffedRx(uint8_t *rx_byte) {
 void Panel::begin(HardwareSerial *uart) {
     _uart = uart;
     _stuffedRxState = SRX_STATE_IDLE;
-    _packetRxState = PRX_STATE_IDLE;
+    _packetState = PRX_STATE_INIT;
     _lastRxSeqNum =_txSeqNum = 0;
     _txDataPoolHead = _txDataPoolTail = 0;
     _txRetries = 0;
+    _bufferPoolOverflowErrors = 0;
 
 }
 
@@ -219,6 +225,24 @@ void Panel::begin(HardwareSerial *uart) {
 
 
 void Panel::loop() {
+    switch(_packetState) {
+        case PRX_STATE_INIT: {
+            Keypad_Command cmd;
+            // Say Init... on all keypads until we see panel updates
+            seq.formatDisplayPacket(&cmd);
+            seq.setLCDLine1(&cmd, "Init...", 7);
+            seq.submitDisplayPacket(&cmd);
+            _packetState = PRX_STATE_IDLE;
+            break;
+        }
+
+        case PRX_STATE_IDLE:
+            break;
+
+
+        default:
+            _packetState = PRX_STATE_IDLE;
+    }
     
 }
 
@@ -230,18 +254,20 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     pke.keypad_address = keypad_addr;
     pke.action = action;
     pke.record_data_length = record_data_length;
-    uint8_t clipped_record_data_length = (record_data_length > MAX_CODE_LENGTH) ? MAX_CODE_LENGTH : record_data_length;
+   
+    memset(pke.record_data, 0xFF, MAX_KEYPAD_DATA_LENGTH);
+    uint8_t clipped_record_data_length = (record_data_length > MAX_KEYPAD_DATA_LENGTH) ? MAX_KEYPAD_DATA_LENGTH : record_data_length;
     if(clipped_record_data_length){
-        memcpy(pke.record_data, record_data, record_data_length);
+        memcpy(pke.record_data, record_data, clipped_record_data_length);
     }
-    else {
-        memset(pke.record_data, 0xFF, MAX_CODE_LENGTH);
-    }
-    _makeTxDataPacket(sizeof(PanelKeyboardEvent), &pke.record_data);
-
+  
+    _makeTxDataPacket(&pke);
+  
+   
     bool res = _queueTxPacket(_txDataQueuedPacket);
-    if(res){
-        LOG_ERROR(TAG, "Buffer pool overflow error");
+    if(res == false){
+        _bufferPoolOverflowErrors++;
+        LOG_ERROR(TAG, "Buffer pool overflow error. Total overflow errors: %d",_bufferPoolOverflowErrors);
     }
 
 }

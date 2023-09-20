@@ -7,6 +7,8 @@
 
 #define MAX_CODE_LENGTH 4
 
+#define MAX_KEYPAD_DATA_LENGTH 16
+
 #define LOG_LEVEL LOG_LEVEL_DEBUG
 
 /*
@@ -51,4 +53,4 @@ typedef struct Keypad_Command{
     uint8_t line1[MAX_KEYPAD_LINE];
     uint8_t line2[MAX_KEYPAD_LINE];
 
-} Keypad_Command;
+} __attribute__((aligned(1))) Keypad_Command;

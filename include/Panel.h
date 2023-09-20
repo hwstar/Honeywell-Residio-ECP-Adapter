@@ -15,7 +15,7 @@
 #define CRC_INIT_VEC 0x55AA
 #define PANEL_MAX_RETRIES 5
 
-enum {PRX_STATE_IDLE = 0};
+enum {PRX_STATE_INIT = 0, PRX_STATE_IDLE};
 enum {SRX_STATE_IDLE = 0, SRX_STATE_WAIT_SECOND};
 
 
@@ -39,7 +39,7 @@ typedef struct PanelKeyboardEvent {
     uint8_t keypad_address;
     uint8_t action;
     uint8_t record_data_length;
-    uint8_t record_data[MAX_CODE_LENGTH];
+    uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
 } __attribute__((aligned(1))) PanelKeyboardEvent; 
 
 
@@ -55,13 +55,14 @@ private:
     uint8_t _txDataPoolTail;
     uint8_t _txPacketPool[TX_DATA_PACKET_POOL_SIZE][RAW_PACKET_BUFFER_SIZE];
     uint8_t _stuffedRxState;
-    uint8_t _packetRxState;
+    uint8_t _packetState;
     uint8_t _txSeqNum;
     uint8_t _lastRxSeqNum;
     uint8_t _txRetries;
+    uint32_t _bufferPoolOverflowErrors;
 
 
-    void _makeTxDataPacket(uint8_t data_len, void *data);
+    void _makeTxDataPacket(PanelKeyboardEvent *data);
     void _makeTxAckNakPacket(uint8_t data_type, uint8_t seq_num);
     bool _queueTxPacket(void *tx_packet_in);
     bool _deQueueTxPacket(void *tx_packet_out);
