@@ -90,7 +90,7 @@ bool Panel::_validateRxPacket(uint8_t data_len, void *data, uint8_t *packet_type
         case PT_ACK:
         case PT_NAK: 
             crc = _crc16((uint8_t *) data, 2, CRC_INIT_VEC);
-            if(((crc & 0xFF) == a->crc16_l) && ((crc >> 8 ) == a->crc16_l)){
+            if(((crc & 0xFF) == a->crc16_l) && ((crc >> 8 ) == a->crc16_h)){
                 *packet_type = a->type;
                 return true;
             }
@@ -241,42 +241,44 @@ void Panel::_rxFrame() {
                 _rxFrameState = RF_STATE_IDLE;
             }
             res = _stuffedRx(&rx_byte);
-            if(res == RX_GOT_ETX) { // End of frame
-                if(_validateRxPacket(_rxFrameIndex, _rxDataPacket, &pt)) {
-                    // Got a packet, set the packet state flags accordingly
-                    PanelPacketAckNak *ppan = (PanelPacketAckNak *) _rxDataPacket;
-                    if(pt == PT_ACK) {
-                        _rxAckPacketSequenceNumber = ppan->seq_num;
-                        _packetStateFlags |= PSF_RX_ACK;
-                        _rxFrameState = RF_WAIT_CLEAR_FLAGS;
-                    }
-                    else if(pt == PT_NAK) {
-                        _rxAckPacketSequenceNumber = ppan->seq_num;
-                        _packetStateFlags |= PSF_RX_NAK;
-                        _rxFrameState = RF_WAIT_CLEAR_FLAGS;
-                    }
-                    else if(pt == PT_DATA_SHORT) {
-                        // Save the data packet sequence number for subsequent ACK'ing.
-                        _rxDataPacketSequenceNumber = ppan->seq_num; // Note: In the same position as an ACK/NAK packet data structure
-                        _packetStateFlags |= PSF_RX_DATA;
-                        _rxFrameState = RF_WAIT_CLEAR_FLAGS;
+            if(res != RX_GOT_NOTHING) {
+                if(res == RX_GOT_ETX) { // End of frame
+                    if(_validateRxPacket(_rxFrameIndex, _rxDataPacket, &pt)) {
+                        // Got a packet, set the packet state flags accordingly
+                        PanelPacketAckNak *ppan = (PanelPacketAckNak *) _rxDataPacket;
+                        if(pt == PT_ACK) {
+                            _rxAckPacketSequenceNumber = ppan->seq_num;
+                            _packetStateFlags |= PSF_RX_ACK;
+                            _rxFrameState = RF_WAIT_CLEAR_FLAGS;
+                        }
+                        else if(pt == PT_NAK) {
+                            _rxAckPacketSequenceNumber = ppan->seq_num;
+                            _packetStateFlags |= PSF_RX_NAK;
+                            _rxFrameState = RF_WAIT_CLEAR_FLAGS;
+                        }
+                        else if(pt == PT_DATA_SHORT) {
+                            // Save the data packet sequence number for subsequent ACK'ing.
+                            _rxDataPacketSequenceNumber = ppan->seq_num; // Note: In the same position as an ACK/NAK packet data structure
+                            _packetStateFlags |= PSF_RX_DATA;
+                            _rxFrameState = RF_WAIT_CLEAR_FLAGS;
+                        }
+                        else {
+                            // Got something we don't understand
+                            _rxFrameState = RF_STATE_IDLE;
+                        }
                     }
                     else {
-                        // Got something we don't understand
+                        // Packet Validation failed
+                        _packetStateFlags |= PSF_BAD_PACKET;
                         _rxFrameState = RF_STATE_IDLE;
                     }
                 }
-                else {
-                    // Packet Validation failed
-                    _packetStateFlags |= PSF_BAD_PACKET;
+                else if( res == RX_GOT_DATA) { // Data byte
+                    _rxDataPacket[_rxFrameIndex++] = rx_byte;
+                }
+                else { // Unexpected frame control byte
                     _rxFrameState = RF_STATE_IDLE;
                 }
-            }
-            else if( res = RX_GOT_DATA) { // Data byte
-                _rxDataPacket[_rxFrameIndex++] = rx_byte;
-            }
-            else { // Unexpected frame control byte
-                _rxFrameState = RF_STATE_IDLE;
             }
             break;
 
@@ -419,7 +421,7 @@ void Panel::_commStateMachine() {
 
             }
       
-            _packetStateFlags &= ~PSF_TX_BUSY; // DEBUG release all packets for now as there is no code on the ESP32 end yet
+            //_packetStateFlags &= ~PSF_TX_BUSY; // DEBUG release all packets for now as there is no code on the ESP32 end yet
 
             // Dequeue next packet if there is one and we are not busy
             if(((_packetStateFlags & PSF_TX_BUSY) == 0) && (_deQueueTxPacket(_txDataDequeuedPacket))){
