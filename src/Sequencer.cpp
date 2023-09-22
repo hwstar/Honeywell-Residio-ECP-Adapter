@@ -614,7 +614,7 @@ void Sequencer::setLcdBackLight(void *dp, bool state){
 */
 
 
-void Sequencer::setLCDLine1(void *dp, const char *line, uint8_t length) {
+void Sequencer::setLCDLine1(void *dp, uint8_t *line, uint8_t length) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
 
     // Limit the length to the size of the line buffer
@@ -635,7 +635,7 @@ void Sequencer::setLCDLine1(void *dp, const char *line, uint8_t length) {
 * Set the content for Line 2 on the keypad
 */
 
-void Sequencer::setLCDLine2(void *dp, const char *line, uint8_t length) {
+void Sequencer::setLCDLine2(void *dp, uint8_t *line, uint8_t length) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
 
     // Limit the length to the size of the line buffer

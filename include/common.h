@@ -32,20 +32,28 @@
 
 
 /*
-* Enums
+* Enums used in communication with the panel
 */
 
 enum {CHIME_NONE=0, CHIME_ONCE, CHIME_TWICE, CHIME_THREE_TIMES, CHIME_FAST_REPEATING, CHIME_SLOW_REPEATING, CHIME_UNUSED, CHIME_LOUD};
 enum {KEYPAD_RECORD_TYPE_PRESENT=0, KEYPAD_RECORD_TYPE_CODE, KEYPAD_RECORD_TYPE_PANIC };
+enum {COMMAND_UPDATE_KEYPAD=0};
 
 
 /*
-* Structs
+* Structs used in communication with the panel
 */
 
-typedef struct Keypad_Command{
+typedef struct CommandPacketHeader {
+    uint8_t record_type;
+    uint8_t data_length;
+} __attribute__((aligned(1))) CommandPacketHeader;
+
+
+typedef struct KeypadCommand{
     bool ready;
     bool armedAway;
+    bool back_light;
     uint8_t keypad_address;
     uint8_t chime;
     uint8_t lenLine1;
@@ -53,4 +61,12 @@ typedef struct Keypad_Command{
     uint8_t line1[MAX_KEYPAD_LINE];
     uint8_t line2[MAX_KEYPAD_LINE];
 
-} __attribute__((aligned(1))) Keypad_Command;
+} __attribute__((aligned(1))) KeypadCommand;
+
+typedef struct PanelKeyboardEvent {
+    uint8_t record_type;
+    uint8_t keypad_address;
+    uint8_t action;
+    uint8_t record_data_length;
+    uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
+} __attribute__((aligned(1))) PanelKeyboardEvent; 

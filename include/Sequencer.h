@@ -123,9 +123,9 @@ public:
 
     void setLcdBackLight(void *dp, bool state);
 
-    void setLCDLine1(void *dp, const char *line, uint8_t length);
+    void setLCDLine1(void *dp, uint8_t *line, uint8_t length);
 
-    void setLCDLine2(void *dp, const char *line, uint8_t length);
+    void setLCDLine2(void *dp, uint8_t *line, uint8_t length);
 
     bool submitDisplayPacket(void *dp);
 

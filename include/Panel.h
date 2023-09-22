@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <common.h>
+#include <Sequencer.h>
 #pragma once
 
 #define RAW_PACKET_BUFFER_SIZE 64
@@ -39,19 +40,11 @@ typedef struct PanelPacketHeader {
 } __attribute__((aligned(1))) PanelPacketHeader;
 
 
-typedef struct PanelKeyboardEvent {
-    uint8_t record_type;
-    uint8_t keypad_address;
-    uint8_t action;
-    uint8_t record_data_length;
-    uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
-} __attribute__((aligned(1))) PanelKeyboardEvent; 
-
-
 class Panel {
 private:
     HardwareSerial *_uart;
     PanelPacketAckNak _txAckNakPacket;
+    Packet_F7 _f7;
     uint8_t _txDataDequeuedPacket[RAW_PACKET_BUFFER_SIZE];
     uint8_t _txDataQueuedPacket[RAW_PACKET_BUFFER_SIZE];
     uint8_t _rxDataPacket[RAW_PACKET_BUFFER_SIZE];

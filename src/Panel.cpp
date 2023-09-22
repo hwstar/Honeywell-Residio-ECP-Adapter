@@ -333,21 +333,75 @@ void Panel::_txFrame(void *tx_packet_in){
 */
 
 void Panel::_processDataPacket() {
+    // Data consists of a command header followed by a specific data structure for the command
+    PanelPacketHeader *pph = (PanelPacketHeader *) _rxDataPacket;
+    CommandPacketHeader *cph = (CommandPacketHeader *) (_rxDataPacket + sizeof(PanelPacketHeader));
+    
+    switch(cph->record_type) {
+
+        case COMMAND_UPDATE_KEYPAD: {
+
+            if(pph->payload_len == sizeof(CommandPacketHeader) + sizeof(KeypadCommand)) {
+                if(cph->data_length == sizeof(KeypadCommand)) {
+                    bool res = false;
+                    uint32_t timer = millis();
+                    do {
+                        if(((uint32_t) millis()) - timer > 1000){
+                            break;
+                        }
+                        KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(CommandPacketHeader));
+                        seq.formatDisplayPacket(&_f7);
+                        seq.setReady(&_f7, kc->ready);
+                        seq.setArmedAway(&_f7, kc->armedAway);
+                        seq.setKeypadAddressBits(&_f7, kc->keypad_address);
+                        seq.setChimeMode(&_f7, kc->chime);
+                        seq.setLCDLine1(&_f7, kc->line1, kc->lenLine1);
+                        seq.setLCDLine2(&_f7, kc->line2, kc->lenLine2);
+                        seq.setLcdBackLight(&_f7, kc->back_light);
+                        seq.setKeypadAddressBits(&_f7, kc->keypad_address);
+                        res = seq.submitDisplayPacket(&_f7);
+
+                    }
+                    while(res == false);
+                }
+                else {
+                    int len = sizeof(KeypadCommand);
+                    LOG_DEBUG(TAG, "Incorrect length for command packet header and command packet size: is: %d, s/b: %d",
+                    cph->data_length,
+                    len);
+                }
+            }
+            else {
+                int len = sizeof(CommandPacketHeader) + sizeof(KeypadCommand);
+                LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d",
+                pph->payload_len,
+                len);
+            }
+            break;
+        }
+
+        default:
+            break;
+
+    }
+
+    
+
 
 }
 
 /*
-* 
+* Master state machine
 */
 
 void Panel::_commStateMachine() {
 
     switch(_packetState) {
         case PRX_STATE_INIT: {
-            Keypad_Command cmd;
+            KeypadCommand cmd;
             // Say Init... on all keypads until we see panel updates
             seq.formatDisplayPacket(&cmd);
-            seq.setLCDLine1(&cmd, "Init...", 7);
+            seq.setLCDLine1(&cmd,(uint8_t *) "Init...", 7);
             seq.submitDisplayPacket(&cmd);
             _packetState = PRX_STATE_IDLE;
             break;
