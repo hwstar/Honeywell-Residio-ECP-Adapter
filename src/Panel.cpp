@@ -10,6 +10,20 @@
 
 extern Sequencer seq;
 
+void Panel::_logDebugHex(const char *desc, void *p, uint32_t length) {
+    char hex_string[16*3+1];
+    length = (length > 16) ? 16 : length; // 16 bytes max!
+    int i;
+    for(i = 0; i < length; i++) {
+        snprintf(hex_string + (i * 3), 4, "%02X ", ((uint8_t *) p)[i]);
+    }
+    LOG_DEBUG(TAG, "%s", desc);
+    LOG_DEBUG(TAG,"%s", hex_string);
+
+}
+
+
+
 /*
 * Calculate a 16 bit CRC
 */
@@ -44,24 +58,55 @@ uint16_t Panel::_crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t
 * Make a TX packet from payload data
 */
  
-void Panel::_makeTxDataPacket(PanelKeyboardEvent *pke) {
+void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
 
-
+    uint8_t clipped_data_len;
+    uint8_t payload_bytes_remaining;
     PanelPacketHeader *p = (PanelPacketHeader *) _txDataQueuedPacket;
-    
-    uint8_t clipped_data_len = ((pke->record_data_length + (sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH)) > MAX_PANEL_PAYLOAD) ?
-    MAX_PANEL_PAYLOAD : pke->record_data_length + (sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH);
-    uint8_t *data_start = ((uint8_t *) _txDataQueuedPacket) + sizeof(PanelPacketHeader);
-    uint8_t *crc_start =  ((uint8_t *) _txDataQueuedPacket) + sizeof(PanelPacketHeader) + clipped_data_len;
+    PanelKeyboardEvent *pke;
+
+
+
+    switch(record_type) {
+        case RTYPE_UPDATE_KEYPAD:
+            pke = (PanelKeyboardEvent *) data;
+
+            payload_bytes_remaining = RAW_PACKET_BUFFER_SIZE - 
+                (sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader) + sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH);
+        
+            clipped_data_len = ((pke->record_data_length + 
+                (sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH)) > payload_bytes_remaining) ?
+                payload_bytes_remaining : pke->record_data_length + (sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH);
+            break;
+
+        default:
+            return; // Don't know what the record type is
+    }
+
+    // Point to record type header
+    RecordTypeHeader *rth =  (RecordTypeHeader *) (_txDataQueuedPacket + sizeof(PanelPacketHeader));
+
+    // Point to data start
+    uint8_t *data_start = ((uint8_t *) (_txDataQueuedPacket) + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
+
+    // Point to CRC start
+    uint8_t *crc_start =  
+        ((uint8_t *) (_txDataQueuedPacket) + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader) + clipped_data_len);
     
     // Set header fields
     p->type = PT_DATA_SHORT;
     p->seq_num = _txSeqNum++;
-    p->payload_len = clipped_data_len;
+    p->payload_len = clipped_data_len + sizeof(RecordTypeHeader);
+    // Set the record type and length
+    rth->record_type = record_type;
+    rth->data_length = clipped_data_len;
+
+
     // Copy the data
-    memcpy(data_start, pke, clipped_data_len);
+    memcpy(data_start, data, clipped_data_len);
     // Calculate CRC
-    uint16_t crc = _crc16((uint8_t *) &_txDataQueuedPacket, clipped_data_len + sizeof(PanelPacketHeader), CRC_INIT_VEC);
+    uint16_t crc = _crc16((uint8_t *) &_txDataQueuedPacket, 
+        (clipped_data_len + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader)), CRC_INIT_VEC);
     // Insert CRC
     crc_start[0] = (uint8_t) crc;
     crc_start[1] = (uint8_t) (crc >> 8);
@@ -122,7 +167,7 @@ bool Panel::_validateRxPacket(uint8_t data_len, void *data, uint8_t *packet_type
 */
 
 bool Panel::_queueTxPacket(void *tx_packet_in) {
-    uint8_t next_head = (_txDataPoolHead + 1 > TX_DATA_PACKET_POOL_SIZE)? 0 : _txDataPoolHead + 1;
+    uint8_t next_head = (_txDataPoolHead + 1 >= TX_DATA_PACKET_POOL_SIZE)? 0 : _txDataPoolHead + 1;
     // If pool is full, return false
     if(next_head == _txDataPoolHead){
         return false;
@@ -146,7 +191,7 @@ bool Panel::_deQueueTxPacket(void *tx_packet_out) {
     if(_txDataPoolHead == _txDataPoolTail) {
         return false;
     }
-    uint8_t next_tail = (_txDataPoolTail + 1 > TX_DATA_PACKET_POOL_SIZE)? 0 : _txDataPoolTail + 1;
+    uint8_t next_tail = (_txDataPoolTail + 1 >= TX_DATA_PACKET_POOL_SIZE)? 0 : _txDataPoolTail + 1;
 
    
     // Determine how much to transfer
@@ -308,6 +353,7 @@ void Panel::_txFrame(void *tx_packet_in){
     uint8_t *p = (uint8_t *) tx_packet_in;
     uint8_t tx_length;
 
+
     if(a->type == PT_DATA_SHORT) {
         tx_length = sizeof(PanelPacketHeader) + sizeof(uint16_t) + h->payload_len; // Get total packet length (3 bytes of header plus 2 bytes of CRC)
     }
@@ -335,13 +381,13 @@ void Panel::_txFrame(void *tx_packet_in){
 void Panel::_processDataPacket() {
     // Data consists of a command header followed by a specific data structure for the command
     PanelPacketHeader *pph = (PanelPacketHeader *) _rxDataPacket;
-    CommandPacketHeader *cph = (CommandPacketHeader *) (_rxDataPacket + sizeof(PanelPacketHeader));
+    RecordTypeHeader *cph = (RecordTypeHeader *) (_rxDataPacket + sizeof(PanelPacketHeader));
     
     switch(cph->record_type) {
 
         case COMMAND_UPDATE_KEYPAD: {
 
-            if(pph->payload_len == sizeof(CommandPacketHeader) + sizeof(KeypadCommand)) {
+            if(pph->payload_len == sizeof(RecordTypeHeader) + sizeof(KeypadCommand)) {
                 if(cph->data_length == sizeof(KeypadCommand)) {
                     bool res = false;
                     uint32_t timer = millis();
@@ -349,7 +395,7 @@ void Panel::_processDataPacket() {
                         if(((uint32_t) millis()) - timer > 1000){
                             break;
                         }
-                        KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(CommandPacketHeader));
+                        KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
                         seq.formatDisplayPacket(&_f7);
                         seq.setReady(&_f7, kc->ready);
                         seq.setArmedAway(&_f7, kc->armedAway);
@@ -372,7 +418,7 @@ void Panel::_processDataPacket() {
                 }
             }
             else {
-                int len = sizeof(CommandPacketHeader) + sizeof(KeypadCommand);
+                int len = sizeof(RecordTypeHeader) + sizeof(KeypadCommand);
                 LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d",
                 pph->payload_len,
                 len);
@@ -395,6 +441,7 @@ void Panel::_processDataPacket() {
 */
 
 void Panel::_commStateMachine() {
+    uint32_t now = millis();
 
     switch(_packetState) {
         case PRX_STATE_INIT: {
@@ -422,7 +469,7 @@ void Panel::_commStateMachine() {
             }
         
         
-   
+            // ACK Case
             if(_packetStateFlags & PSF_RX_ACK) {
                 PanelPacketHeader *pph = (PanelPacketHeader *) _txDataDequeuedPacket;
                 if((_txRetries > 0) && (_txRetries < PANEL_MAX_RETRIES)) {
@@ -433,37 +480,58 @@ void Panel::_commStateMachine() {
                     LOG_WARN(TAG, "Received bad sequence number on ACK packet: is: %d, s/b: %d", _rxAckPacketSequenceNumber, pph->seq_num);
                 }
                 else {
-                    LOG_DEBUG(TAG, "TX packet sucessfully Ack'ed");
+                    LOG_DEBUG(TAG, "TX packet successfully Ack'ed");
                 }
 
                 // Allow reception and transmission.
                 _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
             }
-            // If we receive a NAK, or the TX is busy and the TX time out timer expires
-            // Retry the current frame for a specified number of retries.
-            // Give up and increment the hard error count if we exceed the retries.
-            else if(_packetStateFlags & PSF_RX_NAK || 
-                ( (_packetStateFlags & PSF_TX_BUSY) && (((uint32_t) millis()) - _txTimer > PACKET_TX_TIMEOUT_MS ))) {
-                if(_packetStateFlags & PSF_TX_BUSY) {
+            // If TX busy
+            else if(_packetStateFlags & PSF_TX_BUSY) {
+                // If NAK
+                if(_packetStateFlags & PSF_RX_NAK) {
                     if(_txRetries < PANEL_MAX_RETRIES) {
                         _txRetries++;
-                        LOG_DEBUG(TAG, "Received NAK or TX timeout, at retry number: %d", _txRetries);
+                        // Log the type of error
+                        if (_packetStateFlags & PSF_RX_NAK) {
+                            LOG_DEBUG(TAG, "TX NAK'ed, packet %d, at retry number: %d", _txDataDequeuedPacket[1], _txRetries);
+                        }
                         // Retransmit the current packet
                         _packetState = PRX_TX;
-                        _packetStateFlags &= ~(PSF_RX_FLAGS);
+                        _packetStateFlags &= ~(PSF_RX_FLAGS); // Keep TX busy
                     }
                     else {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
-                         LOG_ERROR(TAG, "Transmit packet hard error");
+                         LOG_ERROR(TAG, "Transmit NAK hard error");
                         _txHardErrors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
                     }
                 }
-                else {
-                    // Ignore NAK if the TX isn't busy. It could be a NAK of an ACK/NAK packet which is meaningless.
-                     _packetStateFlags &= ~(PSF_RX_FLAGS);
-                }
+                // If packet transmit timeout
+                else if(now - _txTimer > PACKET_TX_TIMEOUT_MS) 
+                    if(_txRetries < PANEL_MAX_RETRIES) {
+                        _txRetries++;
+                        // Log the type of error
+                        LOG_DEBUG(TAG, "TX timeout, packet %d, at retry number: %d, _now: %d, _txtimer: %d",
+                        _txDataDequeuedPacket[1], _txRetries, now, _txTimer);
+
+                        // Retransmit the current packet
+                        _packetState = PRX_TX;
+                        _packetStateFlags &= ~(PSF_RX_FLAGS); // Keep TX busy
+
+                    }
+                    else {
+                        //The link is really messed up, or there is a bug.  We have to discard the packet
+                         LOG_ERROR(TAG, "Transmit time out hard error");
+                        _txHardErrors++;
+                        _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
+
+                    }
+       
+                
+ 
             }
+            // If any bad packet
             else if(_packetStateFlags & PSF_BAD_PACKET) {
                 // Packet failed validation send NAK
                 _makeTxAckNakPacket(PT_NAK, 0); 
@@ -472,11 +540,13 @@ void Panel::_commStateMachine() {
                 // Allow reception of the next packet
                 _rxBadPackets++;
                 _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
-
             }
-      
-            //_packetStateFlags &= ~PSF_TX_BUSY; // DEBUG release all packets for now as there is no code on the ESP32 end yet
+            // Ignore NAK outside of TX busy
+            else if(_packetStateFlags == PSF_RX_NAK) { 
+                _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
+            }
 
+    
             // Dequeue next packet if there is one and we are not busy
             if(((_packetStateFlags & PSF_TX_BUSY) == 0) && (_deQueueTxPacket(_txDataDequeuedPacket))){
                 _packetStateFlags |= PSF_TX_BUSY;
@@ -486,9 +556,9 @@ void Panel::_commStateMachine() {
             break;
 
         case PRX_TX: // Transmit a packet in the pool
-            LOG_DEBUG(TAG, "Transmitting packet number: %d", _txDataDequeuedPacket[1]);
-            _txFrame(_txDataDequeuedPacket);
             _txTimer = millis();
+            LOG_DEBUG(TAG, "Transmitting packet number: %d, _txTimer %d", _txDataDequeuedPacket[1], _txTimer);
+            _txFrame(_txDataDequeuedPacket);
             _packetState = PRX_STATE_IDLE;
             break;
 
@@ -549,9 +619,10 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
         memcpy(pke.record_data, record_data, clipped_record_data_length);
     }
   
-    _makeTxDataPacket(&pke);
+    _makeTxDataPacket(RTYPE_UPDATE_KEYPAD, &pke);
+    LOG_DEBUG(TAG, "Received message in");
   
-   
+
     bool res = _queueTxPacket(_txDataQueuedPacket);
     if(res == false){
         _bufferPoolOverflowErrors++;

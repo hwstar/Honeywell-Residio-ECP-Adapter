@@ -44,10 +44,10 @@ enum {COMMAND_UPDATE_KEYPAD=0};
 * Structs used in communication with the panel
 */
 
-typedef struct CommandPacketHeader {
+typedef struct RecordTypeHeader {
     uint8_t record_type;
     uint8_t data_length;
-} __attribute__((aligned(1))) CommandPacketHeader;
+} __attribute__((aligned(1))) RecordTypeHeader;
 
 
 typedef struct KeypadCommand{

@@ -4,7 +4,6 @@
 #pragma once
 
 #define RAW_PACKET_BUFFER_SIZE 64
-#define MAX_PANEL_PAYLOAD (RAW_PACKET_BUFFER_SIZE - 5)
 #define TX_DATA_PACKET_POOL_SIZE 4
 #define STUFF_CODE 0x00
 #define SOH 0x01
@@ -16,14 +15,15 @@
 #define PT_DATA_SHORT 0x02
 #define CRC_INIT_VEC 0x55AA
 #define PANEL_MAX_RETRIES 5
-#define PACKET_TX_TIMEOUT_MS 1000
-#define RX_FRAME_TIMEOUT_MS 1000
+#define PACKET_TX_TIMEOUT_MS 2000
+#define RX_FRAME_TIMEOUT_MS 2000
 
 enum {PSF_CLEAR = 0x00, PSF_RX_ACK = 0x01, PSF_RX_NAK = 0x02, PSF_RX_DATA = 0x04, PSF_BAD_PACKET = 0x08, PSF_TX_BUSY = 0x80, PSF_RX_FLAGS = 0x0F};
 enum {RX_GOT_NOTHING = 0, RX_GOT_STX, RX_GOT_ETX, RX_GOT_DATA};
 enum {PRX_STATE_INIT = 0, PRX_STATE_IDLE, PRX_TX, PRX_TX_WAIT_ACK};
 enum {RF_STATE_IDLE = 0, RF_WAIT_DATA_ETX, RF_WAIT_CLEAR_FLAGS};
 enum {SRX_STATE_IDLE = 0, SRX_STATE_WAIT_SECOND};
+enum {RTYPE_UPDATE_KEYPAD = 0};
 
 typedef struct PanelPacketAckNak {
     uint8_t type;
@@ -71,7 +71,8 @@ private:
     uint32_t _rxBadPackets;
 
 
-    void _makeTxDataPacket(PanelKeyboardEvent *data);
+    void _logDebugHex(const char *dest, void *p, uint32_t length);
+    void _makeTxDataPacket(uint8_t record_type, void *data);
     void _makeTxAckNakPacket(uint8_t data_type, uint8_t seq_num);
     bool _queueTxPacket(void *tx_packet_in);
     bool _deQueueTxPacket(void *tx_packet_out);
