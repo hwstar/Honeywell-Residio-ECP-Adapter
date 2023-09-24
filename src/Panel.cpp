@@ -390,25 +390,18 @@ void Panel::_processDataPacket() {
             if(pph->payload_len == sizeof(RecordTypeHeader) + sizeof(KeypadCommand)) {
                 if(cph->data_length == sizeof(KeypadCommand)) {
                     bool res = false;
-                    uint32_t timer = millis();
-                    do {
-                        if(((uint32_t) millis()) - timer > 1000){
-                            break;
-                        }
-                        KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
-                        seq.formatDisplayPacket(&_f7);
-                        seq.setReady(&_f7, kc->ready);
-                        seq.setArmedAway(&_f7, kc->armedAway);
-                        seq.setKeypadAddressBits(&_f7, kc->keypad_address);
-                        seq.setChimeMode(&_f7, kc->chime);
-                        seq.setLCDLine1(&_f7, kc->line1, kc->lenLine1);
-                        seq.setLCDLine2(&_f7, kc->line2, kc->lenLine2);
-                        seq.setLcdBackLight(&_f7, kc->back_light);
-                        seq.setKeypadAddressBits(&_f7, kc->keypad_address);
-                        res = seq.submitDisplayPacket(&_f7);
-
-                    }
-                    while(res == false);
+   
+                    KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
+                    seq.formatDisplayPacket(&_f7);
+                    seq.setReady(&_f7, kc->ready);
+                    seq.setArmedAway(&_f7, kc->armedAway);
+                    seq.setKeypadAddressBits(&_f7, kc->keypad_address);
+                    seq.setChimeMode(&_f7, kc->chime);
+                    seq.setLCDLine1(&_f7, kc->line1, kc->lenLine1);
+                    seq.setLCDLine2(&_f7, kc->line2, kc->lenLine2);
+                    seq.setLcdBackLight(&_f7, kc->back_light);
+                    seq.setKeypadAddressBits(&_f7, kc->keypad_address);
+                    seq.submitDisplayPacket(&_f7);
                 }
                 else {
                     int len = sizeof(KeypadCommand);
@@ -431,10 +424,23 @@ void Panel::_processDataPacket() {
 
     }
 
-    
-
-
 }
+
+/*
+* Report CBUS Link Error
+*/
+void Panel::_reportCbusLinkError() {
+    const char *cbus_message = "CBUS Link Error";
+    const char *check_message ="Chk. CBUS cable";
+    seq.formatDisplayPacket(&_f7);
+    seq.setLcdBackLight(&_f7, true );
+    seq.setLCDLine1(&_f7, (uint8_t *) cbus_message, strlen(cbus_message));
+     seq.setLCDLine2(&_f7, (uint8_t *) check_message, strlen(check_message));
+    seq.submitDisplayPacket(&_f7);
+
+    
+}
+    
 
 /*
 * Master state machine
@@ -450,6 +456,8 @@ void Panel::_commStateMachine() {
             seq.formatDisplayPacket(&cmd);
             seq.setLCDLine1(&cmd,(uint8_t *) "Init...", 7);
             seq.submitDisplayPacket(&cmd);
+       
+        
             _packetState = PRX_STATE_IDLE;
             break;
         }
@@ -503,6 +511,7 @@ void Panel::_commStateMachine() {
                     else {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
                          LOG_ERROR(TAG, "Transmit NAK hard error");
+                         _reportCbusLinkError();
                         _txHardErrors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
                     }
@@ -523,6 +532,7 @@ void Panel::_commStateMachine() {
                     else {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
                          LOG_ERROR(TAG, "Transmit time out hard error");
+                         _reportCbusLinkError();
                         _txHardErrors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
 
