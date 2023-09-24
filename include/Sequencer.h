@@ -45,14 +45,6 @@ typedef struct Packet_F7 {
         uint8_t pad3;
 } __attribute__((aligned(1))) Packet_F7; // Can get away with non-aligned structure members on an Arm cortex M3.
 
-typedef struct Code_Info {
-    uint32_t timer;
-    uint8_t state;
-    uint8_t command;
-    uint8_t length;
-    uint8_t buffer[MAX_CODE_LENGTH];
-} __attribute__((aligned(1))) Code_Info;
-
 
 class Sequencer {
 
@@ -70,27 +62,20 @@ private:
     uint8_t pollBuffer[3];
     uint8_t packetLength;
     uint8_t indexF7;
-    uint8_t codeDigitsKeypadAddress;
-    uint8_t codeDigitsReceived;
-    uint8_t codeDigits[CODE_DIGIT_BUFFER_SIZE];
     uint8_t packet[PACKET_BUFFER_SIZE];
     uint8_t displayPacketF7[DISPLAY_PACKET_SIZE_F7];
     uint32_t rxParityErrors;
     uint32_t rxChecksumErrors;
-    uint32_t rxTimeoutErrors;
     uint32_t pollInactiveTime;
     uint32_t readStartTime;
     uint32_t pollWaitTime;
 
     Packet_F7 f7;
 
-    Code_Info codeData[MAX_KEYPADS];
-
     keypad_callback pCallback;
    
 
     void _handleECP();
-    void _handleKeypads();
     uint8_t _translateKeypadDigit(uint8_t digit);
     uint8_t _readBytes(uint8_t *buffer, uint8_t byte_count);
 
@@ -134,8 +119,5 @@ public:
     uint32_t getParityErrorCount(bool reset = false);
 
     uint32_t getChecksumErrorCount(bool reset = false);
-    
-    uint32_t getTimeOutErrorCount(bool reset = false);
-
     
 };

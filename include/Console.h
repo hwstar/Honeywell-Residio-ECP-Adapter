@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <lilParser.h>
 
-enum commands { NO_COMMAND, SEND_MESSAGE};
+enum commands { NO_COMMAND=0, GET_CBUS_ERRORS, GET_ECP_ERRORS};
 
 class Console {
 private:

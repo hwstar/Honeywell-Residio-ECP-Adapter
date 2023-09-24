@@ -23,26 +23,12 @@ enum {RX_GOT_NOTHING = 0, RX_GOT_STX, RX_GOT_ETX, RX_GOT_DATA};
 enum {PRX_STATE_INIT = 0, PRX_STATE_IDLE, PRX_TX, PRX_TX_WAIT_ACK};
 enum {RF_STATE_IDLE = 0, RF_WAIT_DATA_ETX, RF_WAIT_CLEAR_FLAGS};
 enum {SRX_STATE_IDLE = 0, SRX_STATE_WAIT_SECOND};
-enum {RTYPE_UPDATE_KEYPAD = 0};
-
-typedef struct PanelPacketAckNak {
-    uint8_t type;
-    uint8_t seq_num;
-    uint8_t crc16_l;
-    uint8_t crc16_h;
-} __attribute__((aligned(1))) PanelPacketAckNak;
-
-
-typedef struct PanelPacketHeader {
-    uint8_t type;
-    uint8_t seq_num;
-    uint8_t payload_len;
-} __attribute__((aligned(1))) PanelPacketHeader;
 
 
 class Panel {
 private:
     HardwareSerial *_uart;
+    ErrorCounters _ec;
     PanelPacketAckNak _txAckNakPacket;
     Packet_F7 _f7;
     uint8_t _txDataDequeuedPacket[RAW_PACKET_BUFFER_SIZE];
@@ -63,12 +49,7 @@ private:
     uint8_t _txRetries;
     uint32_t _rxFrameTimer;
     uint32_t _txTimer;
-    uint32_t _bufferPoolOverflowErrors;
-    uint32_t _txTimeoutErrors;
-    uint32_t _rxFrameTimeouts;
-    uint32_t _txHardErrors;
-    uint32_t _txSoftErrors;
-    uint32_t _rxBadPackets;
+  
 
 
     void _logDebugHex(const char *dest, void *p, uint32_t length);
@@ -92,6 +73,7 @@ public:
     void begin(HardwareSerial *uart);
     void loop();
     void messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action);
+    void getErrorCounters(ErrorCounters *dest);
 
 
 };

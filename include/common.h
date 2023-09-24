@@ -5,8 +5,6 @@
 
 #define ADDR_ALL_KEYPADS 255
 
-#define MAX_CODE_LENGTH 4
-
 #define MAX_KEYPAD_DATA_LENGTH 16
 
 #define LOG_LEVEL LOG_LEVEL_DEBUG
@@ -35,14 +33,30 @@
 * Enums used in communication with the panel
 */
 
-enum {CHIME_NONE=0, CHIME_ONCE, CHIME_TWICE, CHIME_THREE_TIMES, CHIME_FAST_REPEATING, CHIME_SLOW_REPEATING, CHIME_UNUSED, CHIME_LOUD};
-enum {KEYPAD_RECORD_TYPE_PRESENT=0, KEYPAD_RECORD_TYPE_CODE, KEYPAD_RECORD_TYPE_PANIC };
-enum {COMMAND_UPDATE_KEYPAD=0};
-
+enum {CHIME_NONE = 0, CHIME_ONCE, CHIME_TWICE, CHIME_THREE_TIMES, CHIME_FAST_REPEATING, CHIME_SLOW_REPEATING, CHIME_UNUSED, CHIME_LOUD};
+enum {KEYPAD_RECORD_TYPE_PRESENT = 0, KEYPAD_RECORD_KEYS };
+enum {COMMAND_ECHO = 0, COMMAND_RETRIEVE_ERROR_COUNTERS, COMMAND_UPDATE_KEYPAD};
+enum {RTYPE_ECHO=0, RTYPE_SEND_ERROR_COUNTERS, RTYPE_UPDATE_KEYPAD};
 
 /*
 * Structs used in communication with the panel
 */
+
+
+typedef struct PanelPacketAckNak {
+    uint8_t type;
+    uint8_t seq_num;
+    uint8_t crc16_l;
+    uint8_t crc16_h;
+} __attribute__((aligned(1))) PanelPacketAckNak;
+
+
+typedef struct PanelPacketHeader {
+    uint8_t type;
+    uint8_t seq_num;
+    uint8_t payload_len;
+} __attribute__((aligned(1))) PanelPacketHeader;
+
 
 typedef struct RecordTypeHeader {
     uint8_t record_type;
@@ -70,3 +84,17 @@ typedef struct PanelKeyboardEvent {
     uint8_t record_data_length;
     uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
 } __attribute__((aligned(1))) PanelKeyboardEvent; 
+
+typedef struct ErrorCounters {
+    uint32_t tx_soft_errors;
+    uint32_t tx_hard_errors;
+    uint32_t tx_buffer_pool_overflow_errors;
+    uint32_t rx_bad_packets;
+    uint32_t rx_frame_timeouts;
+    uint32_t pad[3];
+} ErrorCounters;
+
+typedef struct EchoCommand {
+    uint8_t length;
+    uint8_t data[8];
+} EchoCommand;

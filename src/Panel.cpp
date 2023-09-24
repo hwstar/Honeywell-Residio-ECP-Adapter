@@ -64,6 +64,7 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
     uint8_t payload_bytes_remaining;
     PanelPacketHeader *p = (PanelPacketHeader *) _txDataQueuedPacket;
     PanelKeyboardEvent *pke;
+   
 
 
 
@@ -77,6 +78,14 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
             clipped_data_len = ((pke->record_data_length + 
                 (sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH)) > payload_bytes_remaining) ?
                 payload_bytes_remaining : pke->record_data_length + (sizeof(PanelKeyboardEvent) - MAX_KEYPAD_DATA_LENGTH);
+            break;
+
+        case RTYPE_SEND_ERROR_COUNTERS:
+            clipped_data_len = sizeof(ErrorCounters);
+            break;
+
+        case RTYPE_ECHO:
+            clipped_data_len = sizeof(EchoCommand);
             break;
 
         default:
@@ -111,6 +120,10 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
     crc_start[0] = (uint8_t) crc;
     crc_start[1] = (uint8_t) (crc >> 8);
 }
+
+/*
+* Make an ACK or NAK packet
+*/
 
 void Panel::_makeTxAckNakPacket(uint8_t data_type, uint8_t seq_num) {
     // Set header fields
@@ -282,7 +295,7 @@ void Panel::_rxFrame() {
         case RF_WAIT_DATA_ETX:
             if(((uint32_t) millis()) - _rxFrameTimer > RX_FRAME_TIMEOUT_MS){
                 // We timed out, start over
-                _rxFrameTimeouts++;
+                _ec.rx_frame_timeouts++;
                 _rxFrameState = RF_STATE_IDLE;
             }
             res = _stuffedRx(&rx_byte);
@@ -382,15 +395,56 @@ void Panel::_processDataPacket() {
     // Data consists of a command header followed by a specific data structure for the command
     PanelPacketHeader *pph = (PanelPacketHeader *) _rxDataPacket;
     RecordTypeHeader *cph = (RecordTypeHeader *) (_rxDataPacket + sizeof(PanelPacketHeader));
-    
+
     switch(cph->record_type) {
 
-        case COMMAND_UPDATE_KEYPAD: {
+        case COMMAND_ECHO: {
+            // Return what was sent to us
+            const int len1 = sizeof(EchoCommand);
+            const int len2 = sizeof(RecordTypeHeader) + sizeof(EchoCommand);
+            if(pph->payload_len == len2) {
+                if(cph->data_length == len1) {
+                    EchoCommand *ec = (EchoCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
+                    _makeTxDataPacket(RTYPE_ECHO, ec);
+                    _queueTxPacket(_txDataQueuedPacket);
+                }
+                else {
+                    LOG_DEBUG(TAG, "Incorrect length for payload packet header and payload packet size: is: %d, s/b: %d", cph->data_length, len1);
 
-            if(pph->payload_len == sizeof(RecordTypeHeader) + sizeof(KeypadCommand)) {
-                if(cph->data_length == sizeof(KeypadCommand)) {
-                    bool res = false;
-   
+                }
+            }
+            else {
+                LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d", pph->payload_len, len2);
+            }
+            break;
+        }
+
+        case COMMAND_RETRIEVE_ERROR_COUNTERS: {
+            // Return the error counters
+            const int len1 = sizeof(ErrorCounters);
+            const int len2 = sizeof(RecordTypeHeader) + sizeof(ErrorCounters);
+            if(pph->payload_len == len2) {
+                if(cph->data_length == len1) {
+                    _makeTxDataPacket(RTYPE_SEND_ERROR_COUNTERS, &_ec);
+                    _queueTxPacket(_txDataQueuedPacket);
+                }
+                else {
+                    LOG_DEBUG(TAG, "Incorrect length for payload packet header and payload packet size: is: %d, s/b: %d", cph->data_length, len1);
+                }
+            }
+            else {
+                LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d", pph->payload_len, len2);
+            }
+            // Send the error counters
+            break;
+        }
+
+        case COMMAND_UPDATE_KEYPAD: {
+            const int len1 = sizeof(KeypadCommand);
+            const int len2 = sizeof(RecordTypeHeader) + sizeof(KeypadCommand);
+            // Update keypad LED's, Buzzer, and LCD display
+            if(pph->payload_len == len2) {
+                if(cph->data_length == len1) {
                     KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
                     seq.formatDisplayPacket(&_f7);
                     seq.setReady(&_f7, kc->ready);
@@ -404,17 +458,11 @@ void Panel::_processDataPacket() {
                     seq.submitDisplayPacket(&_f7);
                 }
                 else {
-                    int len = sizeof(KeypadCommand);
-                    LOG_DEBUG(TAG, "Incorrect length for command packet header and command packet size: is: %d, s/b: %d",
-                    cph->data_length,
-                    len);
+                    LOG_DEBUG(TAG, "Incorrect length for payload packet header and payload packet size: is: %d, s/b: %d", cph->data_length,len1);
                 }
             }
             else {
-                int len = sizeof(RecordTypeHeader) + sizeof(KeypadCommand);
-                LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d",
-                pph->payload_len,
-                len);
+                LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d", pph->payload_len, len2);
             }
             break;
         }
@@ -435,7 +483,7 @@ void Panel::_reportCbusLinkError() {
     seq.formatDisplayPacket(&_f7);
     seq.setLcdBackLight(&_f7, true );
     seq.setLCDLine1(&_f7, (uint8_t *) cbus_message, strlen(cbus_message));
-     seq.setLCDLine2(&_f7, (uint8_t *) check_message, strlen(check_message));
+    seq.setLCDLine2(&_f7, (uint8_t *) check_message, strlen(check_message));
     seq.submitDisplayPacket(&_f7);
 
     
@@ -481,7 +529,7 @@ void Panel::_commStateMachine() {
             if(_packetStateFlags & PSF_RX_ACK) {
                 PanelPacketHeader *pph = (PanelPacketHeader *) _txDataDequeuedPacket;
                 if((_txRetries > 0) && (_txRetries < PANEL_MAX_RETRIES)) {
-                    _txSoftErrors++;
+                    _ec.tx_soft_errors++;
 
                 }
                 if(_rxAckPacketSequenceNumber != pph->seq_num) {
@@ -512,7 +560,7 @@ void Panel::_commStateMachine() {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
                          LOG_ERROR(TAG, "Transmit NAK hard error");
                          _reportCbusLinkError();
-                        _txHardErrors++;
+                        _ec.tx_hard_errors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
                     }
                 }
@@ -533,7 +581,7 @@ void Panel::_commStateMachine() {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
                          LOG_ERROR(TAG, "Transmit time out hard error");
                          _reportCbusLinkError();
-                        _txHardErrors++;
+                        _ec.tx_hard_errors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
 
                     }
@@ -543,12 +591,13 @@ void Panel::_commStateMachine() {
             }
             // If any bad packet
             else if(_packetStateFlags & PSF_BAD_PACKET) {
+                LOG_DEBUG(TAG, "Received bad packet, sending NAK");
                 // Packet failed validation send NAK
                 _makeTxAckNakPacket(PT_NAK, 0); 
                 // Transmit it
                 _txFrame(&_txAckNakPacket);
                 // Allow reception of the next packet
-                _rxBadPackets++;
+                _ec.rx_bad_packets++;
                 _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
             }
             // Ignore NAK outside of TX busy
@@ -581,6 +630,16 @@ void Panel::_commStateMachine() {
 }
 
 /*
+* Return a copy of the error counters
+*/
+
+void Panel::getErrorCounters(ErrorCounters *dest){
+    memcpy(dest, &_ec, sizeof(ErrorCounters));
+}
+
+
+
+/*
 * Initialization function
 */
 
@@ -594,14 +653,9 @@ void Panel::begin(HardwareSerial *uart) {
     _lastRxSeqNum =_txSeqNum = 0;
     _txDataPoolHead = _txDataPoolTail = 0;
     _txRetries = 0;
-    _bufferPoolOverflowErrors = 0;
-    _txTimeoutErrors = 0;
-    _rxFrameTimeouts = 0;
-    _rxBadPackets = 0;
-    _txSoftErrors = 0;
-    _txHardErrors = 0;
-    _txTimer = 0;
-_txTimer = millis();
+    _txTimer = millis();
+    // Clear error counters
+    memset(&_ec, 0, sizeof(ErrorCounters));
 }
 
 /*
@@ -630,13 +684,13 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     }
   
     _makeTxDataPacket(RTYPE_UPDATE_KEYPAD, &pke);
-    LOG_DEBUG(TAG, "Received message in");
+    LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
   
 
     bool res = _queueTxPacket(_txDataQueuedPacket);
     if(res == false){
-        _bufferPoolOverflowErrors++;
-        LOG_ERROR(TAG, "Buffer pool overflow error. Total overflow errors: %d",_bufferPoolOverflowErrors);
+        _ec.tx_buffer_pool_overflow_errors++;
+        LOG_ERROR(TAG, "Buffer pool overflow error. Total overflow errors: %d",_ec.tx_buffer_pool_overflow_errors);
     }
 
 }
