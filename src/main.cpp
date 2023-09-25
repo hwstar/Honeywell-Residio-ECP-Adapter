@@ -34,7 +34,7 @@ void setup() {
   digitalWrite(DEBUG_PIN, false);
 
   SerialConsole.begin(115200);
-  SerialPanel.begin(4800);
+  SerialPanel.begin(19200);
   panel.begin(&SerialPanel);
   console.begin(&SerialConsole);
   ecp.setInterruptPriority(0,0); 

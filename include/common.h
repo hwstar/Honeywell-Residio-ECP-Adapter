@@ -43,28 +43,28 @@ enum {RTYPE_ECHO=0, RTYPE_SEND_ERROR_COUNTERS, RTYPE_UPDATE_KEYPAD};
 */
 
 
-typedef struct PanelPacketAckNak {
+typedef struct alignas(1) PanelPacketAckNak {
     uint8_t type;
     uint8_t seq_num;
     uint8_t crc16_l;
     uint8_t crc16_h;
-} __attribute__((aligned(1))) PanelPacketAckNak;
+} PanelPacketAckNak;
 
 
-typedef struct PanelPacketHeader {
+typedef struct alignas(1) PanelPacketHeader {
     uint8_t type;
     uint8_t seq_num;
     uint8_t payload_len;
-} __attribute__((aligned(1))) PanelPacketHeader;
+} PanelPacketHeader;
 
 
-typedef struct RecordTypeHeader {
+typedef struct alignas(1) RecordTypeHeader {
     uint8_t record_type;
     uint8_t data_length;
-} __attribute__((aligned(1))) RecordTypeHeader;
+}  RecordTypeHeader;
 
 
-typedef struct KeypadCommand{
+typedef struct alignas(1) KeypadCommand{
     bool ready;
     bool armedAway;
     bool back_light;
@@ -75,17 +75,17 @@ typedef struct KeypadCommand{
     uint8_t line1[MAX_KEYPAD_LINE];
     uint8_t line2[MAX_KEYPAD_LINE];
 
-} __attribute__((aligned(1))) KeypadCommand;
+} KeypadCommand;
 
-typedef struct PanelKeyboardEvent {
+typedef struct alignas(1) PanelKeyboardEvent {
     uint8_t record_type;
     uint8_t keypad_address;
     uint8_t action;
     uint8_t record_data_length;
     uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
-} __attribute__((aligned(1))) PanelKeyboardEvent; 
+}  PanelKeyboardEvent; 
 
-typedef struct ErrorCounters {
+typedef struct alignas(1) ErrorCounters {
     uint32_t tx_soft_errors;
     uint32_t tx_hard_errors;
     uint32_t tx_buffer_pool_overflow_errors;
@@ -94,7 +94,7 @@ typedef struct ErrorCounters {
     uint32_t pad[3];
 } ErrorCounters;
 
-typedef struct EchoCommand {
+typedef struct alignas(1) EchoCommand {
     uint8_t length;
     uint8_t data[8];
 } EchoCommand;

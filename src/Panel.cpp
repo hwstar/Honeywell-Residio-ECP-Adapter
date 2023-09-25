@@ -187,7 +187,7 @@ bool Panel::_queueTxPacket(void *tx_packet_in) {
     }
     // Determine how much to transfer
     PanelPacketHeader *h = (PanelPacketHeader *) tx_packet_in;
-    uint8_t byte_count = h->payload_len + 5;
+    uint8_t byte_count = h->payload_len + sizeof(PanelPacketHeader) + 2; // 2 bytes for CRC
 
     // Copy packet into pool
     memcpy(_txPacketPool[_txDataPoolHead], tx_packet_in, byte_count);
@@ -209,7 +209,7 @@ bool Panel::_deQueueTxPacket(void *tx_packet_out) {
    
     // Determine how much to transfer
     PanelPacketHeader *h = (PanelPacketHeader *) _txPacketPool[_txDataPoolTail];
-    uint8_t byte_count = h->payload_len + 5;
+    uint8_t byte_count = h->payload_len + sizeof(PanelPacketHeader) + 2; // 2 bytes for CRC
 
     // Copy packet out of pool
     memcpy(tx_packet_out, _txPacketPool[_txDataPoolTail], byte_count);
@@ -625,6 +625,7 @@ void Panel::_commStateMachine() {
         default:
             // Catch all
             _packetState = PRX_STATE_IDLE;
+            break;
     }
     
 }
