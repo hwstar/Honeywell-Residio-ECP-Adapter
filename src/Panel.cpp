@@ -448,7 +448,7 @@ void Panel::_processDataPacket() {
                     KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
                     seq.formatDisplayPacket(&_f7);
                     seq.setReady(&_f7, kc->ready);
-                    seq.setArmedAway(&_f7, kc->armedAway);
+                    seq.setArmed(&_f7, kc->armed);
                     seq.setKeypadAddressBits(&_f7, kc->keypad_address);
                     seq.setChimeMode(&_f7, kc->chime);
                     seq.setLCDLine1(&_f7, kc->line1, kc->lenLine1);

@@ -104,7 +104,7 @@ public:
 
     void setAcPowerFlag(void *dp, bool state);
 
-    void setArmedAway(void *dp, bool state);
+    void setArmed(void *dp, bool state);
 
     void setLcdBackLight(void *dp, bool state);
 

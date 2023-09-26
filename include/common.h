@@ -66,7 +66,7 @@ typedef struct alignas(1) RecordTypeHeader {
 
 typedef struct alignas(1) KeypadCommand{
     bool ready;
-    bool armedAway;
+    bool armed;
     bool back_light;
     uint8_t keypad_address;
     uint8_t chime;

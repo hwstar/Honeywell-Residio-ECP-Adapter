@@ -10,7 +10,7 @@
 #define READY_BIT 0x10 
 #define CHIME_BIT 0x20 
 #define AC_POWER_ON_BIT 0x08
-#define ARMED_AWAY_BIT 0x04
+#define ARMED_BIT 0x04
 #define LCD_BACKLIGHT_BIT 0x80
 #define INIT_MESSAGE_BIT 0x80
 
@@ -417,13 +417,13 @@ void Sequencer::setAcPowerFlag(void *dp, bool state) {
 * Set the Armed LED on the keypad/.
 */
 
-void Sequencer::setArmedAway(void *dp, bool state) {
+void Sequencer::setArmed(void *dp, bool state) {
     Packet_F7 *packet = (Packet_F7 * ) dp;
     if(state){
-        packet->statusBits |= ARMED_AWAY_BIT;
+        packet->statusBits |= ARMED_BIT;
     }
     else {
-        packet->statusBits &= ~ARMED_AWAY_BIT;
+        packet->statusBits &= ~ARMED_BIT;
     }
 
 }
