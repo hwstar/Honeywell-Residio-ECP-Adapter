@@ -398,7 +398,7 @@ void Panel::_processDataPacket() {
 
     switch(cph->record_type) {
 
-        case COMMAND_ECHO: {
+        case RTYPE_ECHO: {
             // Return what was sent to us
             const int len1 = sizeof(EchoCommand);
             const int len2 = sizeof(RecordTypeHeader) + sizeof(EchoCommand);
@@ -419,7 +419,7 @@ void Panel::_processDataPacket() {
             break;
         }
 
-        case COMMAND_RETRIEVE_ERROR_COUNTERS: {
+        case RTYPE_SEND_ERROR_COUNTERS: {
             // Return the error counters
             const int len1 = sizeof(ErrorCounters);
             const int len2 = sizeof(RecordTypeHeader) + sizeof(ErrorCounters);
@@ -439,7 +439,7 @@ void Panel::_processDataPacket() {
             break;
         }
 
-        case COMMAND_UPDATE_KEYPAD: {
+        case RTYPE_UPDATE_KEYPAD: {
             const int len1 = sizeof(KeypadCommand);
             const int len2 = sizeof(RecordTypeHeader) + sizeof(KeypadCommand);
             // Update keypad LED's, Buzzer, and LCD display
@@ -684,7 +684,7 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
         memcpy(pke.record_data, record_data, clipped_record_data_length);
     }
   
-    _makeTxDataPacket(RTYPE_UPDATE_KEYPAD, &pke);
+    _makeTxDataPacket(RTYPE_DATA_FROM_KEYPAD, &pke);
     LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
   
 
