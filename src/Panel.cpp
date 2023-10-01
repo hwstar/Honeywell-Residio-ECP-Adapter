@@ -2,6 +2,7 @@
 #include <easylog.h>
 #include <Panel.h>
 #include <Sequencer.h>
+#include <Led.h>
 #ifdef USE_ESP32
 #include esphome/core/helpers.h
 #endif
@@ -9,6 +10,7 @@
 #define TAG panel
 
 extern Sequencer seq;
+extern Led led;
 
 void Panel::_logDebugHex(const char *desc, void *p, uint32_t length) {
     char hex_string[16*3+1];
@@ -272,10 +274,9 @@ int Panel::_stuffedRx(uint8_t *rx_byte) {
 }
 
 
-
-
-
-
+/*
+* Handler to receive a frame from the SP8
+*/
 
 void Panel::_rxFrame() {
     uint8_t rx_byte;
@@ -396,7 +397,14 @@ void Panel::_processDataPacket() {
     PanelPacketHeader *pph = (PanelPacketHeader *) _rxDataPacket;
     RecordTypeHeader *cph = (RecordTypeHeader *) (_rxDataPacket + sizeof(PanelPacketHeader));
 
+    led.cbusFlash();
+
     switch(cph->record_type) {
+
+        case RTYPE_HELLO:
+            // This releases the TX handler to send packets to the SP8
+            _helloReceived = true;
+            break;
 
         case RTYPE_ECHO: {
             // Return what was sent to us
@@ -499,19 +507,13 @@ void Panel::_commStateMachine() {
 
     switch(_packetState) {
         case PRX_STATE_INIT: {
-            KeypadCommand cmd;
-            // Say Init... on all keypads until we see panel updates
-            seq.formatDisplayPacket(&cmd);
-            seq.setLCDLine1(&cmd,(uint8_t *) "Init...", 7);
-            seq.submitDisplayPacket(&cmd);
-       
-        
             _packetState = PRX_STATE_IDLE;
             break;
         }
 
         case PRX_STATE_IDLE:
         
+
             if(_packetStateFlags & PSF_RX_DATA) {
                 // We received a data packet
                 LOG_DEBUG(TAG, "Received data packet number: %d", _rxAckPacketSequenceNumber);
@@ -606,8 +608,10 @@ void Panel::_commStateMachine() {
             }
 
     
-            // Dequeue next packet if there is one and we are not busy
-            if(((_packetStateFlags & PSF_TX_BUSY) == 0) && (_deQueueTxPacket(_txDataDequeuedPacket))){
+            // Dequeue next packet if hello has been received and there is one and we are not busy
+            if((_helloReceived == true) && 
+                ((_packetStateFlags & PSF_TX_BUSY) == 0) &&
+                (_deQueueTxPacket(_txDataDequeuedPacket))){
                 _packetStateFlags |= PSF_TX_BUSY;
                 _txRetries = 0;
                 _packetState = PRX_TX;
@@ -651,10 +655,13 @@ void Panel::begin(HardwareSerial *uart) {
     _rxFrameState = RF_STATE_IDLE;
     _packetState = PRX_STATE_INIT;
     _packetStateFlags = PSF_CLEAR;
+    _helloReceived = false;
+    _initMessageSent = false;
     _lastRxSeqNum =_txSeqNum = 0;
     _txDataPoolHead = _txDataPoolTail = 0;
     _txRetries = 0;
     _txTimer = millis();
+    _initMessageTimer = millis();
     // Clear error counters
     memset(&_ec, 0, sizeof(ErrorCounters));
 }
@@ -667,6 +674,18 @@ void Panel::begin(HardwareSerial *uart) {
 void Panel::loop() {
     _rxFrame();
     _commStateMachine();
+
+    // Handle initialization message delay at power on
+    if((_helloReceived == false) && (_initMessageSent == false)) {
+        if(((uint32_t) millis()) - _initMessageTimer > INIT_MESSAGE_DELAY_MS) {
+            KeypadCommand cmd;
+            // Say Init... on all keypads until we see panel updates
+            seq.formatDisplayPacket(&cmd);
+            seq.setLCDLine1(&cmd,(uint8_t *) "Init...", 7);
+            seq.submitDisplayPacket(&cmd);
+            _initMessageSent = true;
+        }
+    }
 }
 
 void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action) {
@@ -677,6 +696,8 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     pke.keypad_address = keypad_addr;
     pke.action = action;
     pke.record_data_length = record_data_length;
+
+    led.ecpFlash();
    
     memset(pke.record_data, 0xFF, MAX_KEYPAD_DATA_LENGTH);
     uint8_t clipped_record_data_length = (record_data_length > MAX_KEYPAD_DATA_LENGTH) ? MAX_KEYPAD_DATA_LENGTH : record_data_length;
@@ -692,6 +713,11 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     if(res == false){
         _ec.tx_buffer_pool_overflow_errors++;
         LOG_ERROR(TAG, "Buffer pool overflow error. Total overflow errors: %d",_ec.tx_buffer_pool_overflow_errors);
+        // If the buffer pool is full and no hello was received, this indicates that there is no
+        // communication to the SP8 panel. Post a CBUS link error to all the displays.
+        if(_helloReceived == false) {
+            _reportCbusLinkError();
+        }
     }
 
 }

@@ -5,6 +5,7 @@
 #include <Console.h>
 #include <common.h>
 #include <Panel.h>
+#include <Led.h>
 
 
 EcpSoftwareSerial ecp(ECP_RX, ECP_TX, true, true, ECP_DEBUG); // UART for the Honeywell ECP bus
@@ -13,6 +14,7 @@ HardwareSerial SerialConsole(CONSOLE_RX, CONSOLE_TX); // Console UART
 HardwareSerial SerialPanel(PANEL_RX, PANEL_TX); // Panel UART
 Console console;
 Panel panel;
+Led led;
 
 
 void message_callback(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action){
@@ -104,6 +106,7 @@ void setup() {
 
   SerialConsole.begin(115200);
   SerialPanel.begin(19200);
+  led.begin();
   panel.begin(&SerialPanel);
   console.begin(&SerialConsole);
   ecp.setInterruptPriority(0,0); 
@@ -117,6 +120,7 @@ void loop() {
   seq.update();
   panel.loop();
   console.loop();
+  led.loop();
 }
 
  

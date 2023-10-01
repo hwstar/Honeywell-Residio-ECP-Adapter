@@ -4,7 +4,7 @@
 #pragma once
 
 #define RAW_PACKET_BUFFER_SIZE 64
-#define TX_DATA_PACKET_POOL_SIZE 4
+#define TX_DATA_PACKET_POOL_SIZE 16
 #define STUFF_CODE 0x00
 #define SOH 0x01
 #define STX 0x02
@@ -17,6 +17,7 @@
 #define PANEL_MAX_RETRIES 5
 #define PACKET_TX_TIMEOUT_MS 2000
 #define RX_FRAME_TIMEOUT_MS 2000
+#define INIT_MESSAGE_DELAY_MS 10000
 
 enum {PSF_CLEAR = 0x00, PSF_RX_ACK = 0x01, PSF_RX_NAK = 0x02, PSF_RX_DATA = 0x04, PSF_BAD_PACKET = 0x08, PSF_TX_BUSY = 0x80, PSF_RX_FLAGS = 0x0F};
 enum {RX_GOT_NOTHING = 0, RX_GOT_STX, RX_GOT_ETX, RX_GOT_DATA};
@@ -31,6 +32,8 @@ private:
     ErrorCounters _ec;
     PanelPacketAckNak _txAckNakPacket;
     Packet_F7 _f7;
+    bool _helloReceived;
+    bool _initMessageSent;
     uint8_t _txDataDequeuedPacket[RAW_PACKET_BUFFER_SIZE];
     uint8_t _txDataQueuedPacket[RAW_PACKET_BUFFER_SIZE];
     uint8_t _rxDataPacket[RAW_PACKET_BUFFER_SIZE];
@@ -49,6 +52,10 @@ private:
     uint8_t _txRetries;
     uint32_t _rxFrameTimer;
     uint32_t _txTimer;
+    uint32_t _initMessageTimer;
+    uint32_t _ecpLedFlashTimer;
+    uint32_t _cbusLedFlashTimer;
+    
   
 
 
