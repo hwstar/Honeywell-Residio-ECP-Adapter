@@ -14,17 +14,33 @@ extern Led led;
 
 void Panel::_logDebugHex(const char *desc, void *p, uint32_t length) {
     char hex_string[16*3+1];
-    length = (length > 16) ? 16 : length; // 16 bytes max!
-    int i;
-    for(i = 0; i < length; i++) {
-        snprintf(hex_string + (i * 3), 4, "%02X ", ((uint8_t *) p)[i]);
+    uint32_t lines;
+    uint32_t len;
+    
+    if(length > 16) {
+      lines = (length / 16) + 1;
     }
+    else {
+      lines = 1;
+    }
+      
+   
     LOG_DEBUG(TAG, "%s", desc);
-    LOG_DEBUG(TAG,"%s", hex_string);
-
+    for(uint32_t line = 0; line < lines; line++) {
+      if(length > 16) {
+        len = 16;
+        length -= 16;
+      }
+      else {
+        len = length;
+      }
+      for(uint32_t i = 0; i < len; i++) {
+        snprintf(hex_string + (i * 3), 4, "%02X ", ((uint8_t *) p)[i + (line * 16)]);
+      }
+      LOG_DEBUG(TAG,"%s", hex_string);
+    }
+     
 }
-
-
 
 /*
 * Calculate a 16 bit CRC
@@ -354,6 +370,7 @@ void Panel::_rxFrame() {
                     _rxFrameState = RF_STATE_IDLE;
                 }
             }
+    
             break;
 
         case RF_WAIT_CLEAR_FLAGS:
@@ -471,6 +488,7 @@ void Panel::_processDataPacket() {
             if(pph->payload_len == len2) {
                 if(cph->data_length == len1) {
                     KeypadCommand *kc = (KeypadCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
+                    _logDebugHex("Keypad Command Received", kc, sizeof(KeypadCommand)); // DEBUG
                     seq.formatDisplayPacket(&_f7);
                     seq.setReady(&_f7, kc->ready);
                     seq.setArmed(&_f7, kc->armed);
@@ -599,7 +617,7 @@ void Panel::_commStateMachine() {
                     else {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
                          LOG_ERROR(TAG, "Transmit time out hard error");
-                         _reportCbusLinkError();
+                        _reportCbusLinkError();
                         _ec.tx_hard_errors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
 
@@ -636,7 +654,6 @@ void Panel::_commStateMachine() {
         case PRX_TX: // Transmit a packet in the pool
             _txTimer = millis();
             LOG_DEBUG(TAG, "Transmitting packet number: %d, _txTimer %d", _txDataDequeuedPacket[1], _txTimer);
-            //_logDebugHex("TX data ",_txDataQueuedPacket, 16 ); // DEBUG
             _txFrame(_txDataDequeuedPacket);
             _packetState = PRX_STATE_IDLE;
             break;
