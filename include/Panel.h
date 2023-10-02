@@ -18,6 +18,8 @@
 #define PACKET_TX_TIMEOUT_MS 2000
 #define RX_FRAME_TIMEOUT_MS 2000
 #define INIT_MESSAGE_DELAY_MS 10000
+#define MESSAGE_INACTIVITY_TIME_MS 5000
+#define ONE_SECOND_MS 1000
 
 enum {PSF_CLEAR = 0x00, PSF_RX_ACK = 0x01, PSF_RX_NAK = 0x02, PSF_RX_DATA = 0x04, PSF_BAD_PACKET = 0x08, PSF_TX_BUSY = 0x80, PSF_RX_FLAGS = 0x0F};
 enum {RX_GOT_NOTHING = 0, RX_GOT_STX, RX_GOT_ETX, RX_GOT_DATA};
@@ -33,6 +35,8 @@ private:
     PanelPacketAckNak _txAckNakPacket;
     Packet_F7 _f7;
     bool _helloReceived;
+    bool _transmitHelloResponse;
+    bool _helloSent;
     bool _initMessageSent;
     uint8_t _txDataDequeuedPacket[RAW_PACKET_BUFFER_SIZE];
     uint8_t _txDataQueuedPacket[RAW_PACKET_BUFFER_SIZE];
@@ -55,12 +59,14 @@ private:
     uint32_t _initMessageTimer;
     uint32_t _ecpLedFlashTimer;
     uint32_t _cbusLedFlashTimer;
+    uint32_t _messageInactivityTimer;
+   
     
   
 
 
     void _logDebugHex(const char *dest, void *p, uint32_t length);
-    void _makeTxDataPacket(uint8_t record_type, void *data);
+    void _makeTxDataPacket(uint8_t *buffer, uint8_t record_type, void *data = NULL);
     void _makeTxAckNakPacket(uint8_t data_type, uint8_t seq_num);
     bool _queueTxPacket(void *tx_packet_in);
     bool _deQueueTxPacket(void *tx_packet_out);

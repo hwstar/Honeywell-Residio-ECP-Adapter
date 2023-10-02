@@ -60,19 +60,26 @@ uint16_t Panel::_crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t
 * Make a TX packet from payload data
 */
  
-void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
+void Panel::_makeTxDataPacket(uint8_t *buffer, uint8_t record_type, void *data) {
 
     uint8_t clipped_data_len;
     uint8_t payload_bytes_remaining;
     PanelPacketHeader *p = (PanelPacketHeader *) _txDataQueuedPacket;
     PanelKeyboardEvent *pke;
    
-
-
+    if(buffer == NULL) {
+        return;
+    }
 
     switch(record_type) {
+        case RTYPE_HELLO:
+            LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_HELLO");
+            clipped_data_len = 0;
+            break;
+
+
         case RTYPE_DATA_FROM_KEYPAD:
-            LOG_DEBUG(TAG, "makeTxPacket() received RTYPE_DATA_FROM_KEYPAD");
+            LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_DATA_FROM_KEYPAD");
             pke = (PanelKeyboardEvent *) data;
 
             payload_bytes_remaining = RAW_PACKET_BUFFER_SIZE - 
@@ -84,12 +91,12 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
             break;
 
         case RTYPE_SEND_ERROR_COUNTERS:
-            LOG_DEBUG(TAG, "makeTxPacket() received RTYPE_SEND_ERROR_COUNTERS");
+            LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_SEND_ERROR_COUNTERS");
             clipped_data_len = sizeof(ErrorCounters);
             break;
 
         case RTYPE_ECHO:
-            LOG_DEBUG(TAG, "makeTxPacket() received RTYPE_ECHO");
+            LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_ECHO");
             clipped_data_len = sizeof(EchoCommand);
             break;
 
@@ -99,18 +106,19 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
     }
 
     // Point to record type header
-    RecordTypeHeader *rth =  (RecordTypeHeader *) (_txDataQueuedPacket + sizeof(PanelPacketHeader));
+    RecordTypeHeader *rth =  (RecordTypeHeader *) (buffer + sizeof(PanelPacketHeader));
 
     // Point to data start
-    uint8_t *data_start = ((uint8_t *) (_txDataQueuedPacket) + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
+    uint8_t *data_start = buffer + (sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
 
     // Point to CRC start
     uint8_t *crc_start =  
-        ((uint8_t *) (_txDataQueuedPacket) + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader) + clipped_data_len);
+        buffer + (sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader) + clipped_data_len);
     
     // Set header fields
     p->type = PT_DATA_SHORT;
     p->seq_num = _txSeqNum++;
+    LOG_DEBUG(TAG, "makeTxPacket() packet sequence number: %d", p->seq_num);
     p->payload_len = clipped_data_len + sizeof(RecordTypeHeader);
     // Set the record type and length
     rth->record_type = record_type;
@@ -118,9 +126,11 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
 
 
     // Copy the data
-    memcpy(data_start, data, clipped_data_len);
+    if((clipped_data_len != 0) && (data != NULL)) {
+        memcpy(data_start, data, clipped_data_len);
+    }
     // Calculate CRC
-    uint16_t crc = _crc16((uint8_t *) &_txDataQueuedPacket, 
+    uint16_t crc = _crc16((uint8_t *) buffer, 
         (clipped_data_len + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader)), CRC_INIT_VEC);
     // Insert CRC
     crc_start[0] = (uint8_t) crc;
@@ -306,6 +316,7 @@ void Panel::_rxFrame() {
             res = _stuffedRx(&rx_byte);
             if(res != RX_GOT_NOTHING) {
                 if(res == RX_GOT_ETX) { // End of frame
+                    //LOG_DEBUG(TAG, "Frame ETX received. Packet type: %d, Packet Sequence number: %d",_rxDataPacket[0], _rxDataPacket[1]);
                     if(_validateRxPacket(_rxFrameIndex, _rxDataPacket, &pt)) {
                         // Got a packet, set the packet state flags accordingly
                         PanelPacketAckNak *ppan = (PanelPacketAckNak *) _rxDataPacket;
@@ -409,6 +420,7 @@ void Panel::_processDataPacket() {
             LOG_DEBUG(TAG, "Received Hello message from SP8");
             // This releases the TX handler to send packets to the SP8
             _helloReceived = true;
+            _transmitHelloResponse = true;
             break;
 
         case RTYPE_ECHO: {
@@ -418,7 +430,7 @@ void Panel::_processDataPacket() {
             if(pph->payload_len == len2) {
                 if(cph->data_length == len1) {
                     EchoCommand *ec = (EchoCommand *) (_rxDataPacket + sizeof(PanelPacketHeader) + sizeof(RecordTypeHeader));
-                    _makeTxDataPacket(RTYPE_ECHO, ec);
+                    _makeTxDataPacket(_txDataQueuedPacket,  RTYPE_ECHO, ec);
                     _queueTxPacket(_txDataQueuedPacket);
                 }
                 else {
@@ -438,7 +450,7 @@ void Panel::_processDataPacket() {
             const int len2 = sizeof(RecordTypeHeader) + sizeof(ErrorCounters);
             if(pph->payload_len == len2) {
                 if(cph->data_length == len1) {
-                    _makeTxDataPacket(RTYPE_SEND_ERROR_COUNTERS, &_ec);
+                    _makeTxDataPacket(_txDataQueuedPacket, RTYPE_SEND_ERROR_COUNTERS, &_ec);
                     _queueTxPacket(_txDataQueuedPacket);
                 }
                 else {
@@ -521,7 +533,7 @@ void Panel::_commStateMachine() {
 
             if(_packetStateFlags & PSF_RX_DATA) {
                 // We received a data packet
-                LOG_DEBUG(TAG, "Received data packet number: %d", _rxAckPacketSequenceNumber);
+                LOG_DEBUG(TAG, "Received data packet. Sequence number: %d, record_type: %d", _rxDataPacket[1], _rxDataPacket[3]);
                 _processDataPacket();
                 // Make ACK Data packet
                 _makeTxAckNakPacket(PT_ACK, _rxDataPacketSequenceNumber); 
@@ -543,7 +555,7 @@ void Panel::_commStateMachine() {
                     LOG_WARN(TAG, "Received bad sequence number on ACK packet: is: %d, s/b: %d", _rxAckPacketSequenceNumber, pph->seq_num);
                 }
                 else {
-                    LOG_DEBUG(TAG, "TX packet successfully Ack'ed");
+                    LOG_DEBUG(TAG, "TX packet sequence number %d successfully Ack'ed", pph->seq_num);
                 }
 
                 // Allow reception and transmission.
@@ -659,13 +671,12 @@ void Panel::begin(HardwareSerial *uart) {
     _rxFrameState = RF_STATE_IDLE;
     _packetState = PRX_STATE_INIT;
     _packetStateFlags = PSF_CLEAR;
-    _helloReceived = false;
+    _helloReceived = _helloSent = false;
     _initMessageSent = false;
     _lastRxSeqNum =_txSeqNum = 0;
     _txDataPoolHead = _txDataPoolTail = 0;
     _txRetries = 0;
-    _txTimer = millis();
-    _initMessageTimer = millis();
+    _txTimer = _initMessageTimer = _messageInactivityTimer = millis();
     // Clear error counters
     memset(&_ec, 0, sizeof(ErrorCounters));
 }
@@ -676,6 +687,9 @@ void Panel::begin(HardwareSerial *uart) {
 
 
 void Panel::loop() {
+    
+
+
     _rxFrame();
     _commStateMachine();
 
@@ -690,6 +704,25 @@ void Panel::loop() {
             _initMessageSent = true;
         }
     }
+    // Handle sending hello message to SP8 when there is no ECP activity for a prescribed amount of time
+    if((_helloReceived == true) && (_helloSent == false) && // Case if both the SP8 and KPA1 are powered on at the same time
+        ((((uint32_t) millis()) - _messageInactivityTimer) > MESSAGE_INACTIVITY_TIME_MS)) {
+            // Send the hello packet by bypassing the queue
+            LOG_DEBUG(TAG, "Sending the Hello packet to the SP8");
+            _helloSent = true;
+            _transmitHelloResponse = false;
+            _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO);
+            _queueTxPacket(_txDataQueuedPacket);
+    }
+    else if ((_helloSent == true) && (_transmitHelloResponse == true)) { // Case if the SP8 is reset but we stay powered on.
+            LOG_DEBUG(TAG, "Resending the Hello packet to the SP8");
+            _transmitHelloResponse = false;
+            _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO);
+            _queueTxPacket(_txDataQueuedPacket);
+
+    }
+
+
 }
 
 void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action) {
@@ -702,6 +735,8 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     pke.record_data_length = record_data_length;
 
     led.ecpFlash();
+    _messageInactivityTimer = millis();
+
    
     memset(pke.record_data, 0xFF, MAX_KEYPAD_DATA_LENGTH);
     uint8_t clipped_record_data_length = (record_data_length > MAX_KEYPAD_DATA_LENGTH) ? MAX_KEYPAD_DATA_LENGTH : record_data_length;
@@ -709,7 +744,7 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
         memcpy(pke.record_data, record_data, clipped_record_data_length);
     }
   
-    _makeTxDataPacket(RTYPE_DATA_FROM_KEYPAD, &pke);
+    _makeTxDataPacket(_txDataQueuedPacket, RTYPE_DATA_FROM_KEYPAD, &pke);
     LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
   
 
@@ -723,5 +758,5 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
             _reportCbusLinkError();
         }
     }
-
+  
 }
