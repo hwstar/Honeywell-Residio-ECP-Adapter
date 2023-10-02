@@ -71,7 +71,8 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
 
 
     switch(record_type) {
-        case RTYPE_UPDATE_KEYPAD:
+        case RTYPE_DATA_FROM_KEYPAD:
+            LOG_DEBUG(TAG, "makeTxPacket() received RTYPE_DATA_FROM_KEYPAD");
             pke = (PanelKeyboardEvent *) data;
 
             payload_bytes_remaining = RAW_PACKET_BUFFER_SIZE - 
@@ -83,14 +84,17 @@ void Panel::_makeTxDataPacket(uint8_t record_type, void *data) {
             break;
 
         case RTYPE_SEND_ERROR_COUNTERS:
+            LOG_DEBUG(TAG, "makeTxPacket() received RTYPE_SEND_ERROR_COUNTERS");
             clipped_data_len = sizeof(ErrorCounters);
             break;
 
         case RTYPE_ECHO:
+            LOG_DEBUG(TAG, "makeTxPacket() received RTYPE_ECHO");
             clipped_data_len = sizeof(EchoCommand);
             break;
 
         default:
+            LOG_ERROR(TAG, "makeTxPacket() received unhandled record type: %d", record_type);
             return; // Don't know what the record type is
     }
 
@@ -402,6 +406,7 @@ void Panel::_processDataPacket() {
     switch(cph->record_type) {
 
         case RTYPE_HELLO:
+            LOG_DEBUG(TAG, "Received Hello message from SP8");
             // This releases the TX handler to send packets to the SP8
             _helloReceived = true;
             break;
@@ -567,7 +572,7 @@ void Panel::_commStateMachine() {
                     }
                 }
                 // If packet transmit timeout
-                else if(now - _txTimer > PACKET_TX_TIMEOUT_MS) 
+                else if(now - _txTimer > PACKET_TX_TIMEOUT_MS) {
                     if(_txRetries < PANEL_MAX_RETRIES) {
                         _txRetries++;
                         // Log the type of error
@@ -587,9 +592,7 @@ void Panel::_commStateMachine() {
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
 
                     }
-       
-                
- 
+                }
             }
             // If any bad packet
             else if(_packetStateFlags & PSF_BAD_PACKET) {
@@ -621,6 +624,7 @@ void Panel::_commStateMachine() {
         case PRX_TX: // Transmit a packet in the pool
             _txTimer = millis();
             LOG_DEBUG(TAG, "Transmitting packet number: %d, _txTimer %d", _txDataDequeuedPacket[1], _txTimer);
+            //_logDebugHex("TX data ",_txDataQueuedPacket, 16 ); // DEBUG
             _txFrame(_txDataDequeuedPacket);
             _packetState = PRX_STATE_IDLE;
             break;
