@@ -90,8 +90,10 @@ void Console::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record
         snprintf((hex_string + (i*3)), 4, "%02X ", record_data[i]);
     }
     hex_string[((i-1)*3)+2] = 0;
-    LOG_INFO(TAG, "Message from keypad keypad address %02X: Record type: %02X, Data length: %d, Data: %s\r\n",
-        keypad_addr, record_type, record_data_length, hex_string);
+    if(record_data_length) {
+        LOG_INFO(TAG, "Message from keypad keypad address %02X: Record type: %02X, Data length: %d, Data: %s\r\n",
+            keypad_addr, record_type, record_data_length, hex_string);
+    }
 
         
 

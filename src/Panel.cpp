@@ -332,7 +332,7 @@ void Panel::_rxFrame() {
             res = _stuffedRx(&rx_byte);
             if(res != RX_GOT_NOTHING) {
                 if(res == RX_GOT_ETX) { // End of frame
-                    //LOG_DEBUG(TAG, "Frame ETX received. Packet type: %d, Packet Sequence number: %d",_rxDataPacket[0], _rxDataPacket[1]);
+                    LOG_DEBUG(TAG, "Got frame type: %d, sequence number: %d, time (ms): %d", _rxDataPacket[0], _rxDataPacket[1], millis());
                     if(_validateRxPacket(_rxFrameIndex, _rxDataPacket, &pt)) {
                         // Got a packet, set the packet state flags accordingly
                         PanelPacketAckNak *ppan = (PanelPacketAckNak *) _rxDataPacket;
@@ -557,7 +557,8 @@ void Panel::_commStateMachine() {
                 _makeTxAckNakPacket(PT_ACK, _rxDataPacketSequenceNumber); 
                 // Transmit it
                 _txFrame(&_txAckNakPacket);
-                // Allow reception of the next packet
+                LOG_DEBUG(TAG, "ACK transmitted to SP8 for packet sequence number: %d", _rxDataPacket[1]);
+                // Unlock the receiver to allow reception of the next packet
                 _packetStateFlags &= ~PSF_RX_FLAGS;
             }
         
@@ -570,10 +571,10 @@ void Panel::_commStateMachine() {
 
                 }
                 if(_rxAckPacketSequenceNumber != pph->seq_num) {
-                    LOG_WARN(TAG, "Received bad sequence number on ACK packet: is: %d, s/b: %d", _rxAckPacketSequenceNumber, pph->seq_num);
+                    LOG_WARN(TAG, "Received bad sequence number from SP8 on ACK packet: is: %d, s/b: %d", _rxAckPacketSequenceNumber, pph->seq_num);
                 }
                 else {
-                    LOG_DEBUG(TAG, "TX packet sequence number %d successfully Ack'ed", pph->seq_num);
+                    LOG_DEBUG(TAG, "TX packet sequence number %d from SP8 successfully Ack'ed", pph->seq_num);
                 }
 
                 // Allow reception and transmission.
@@ -587,7 +588,7 @@ void Panel::_commStateMachine() {
                         _txRetries++;
                         // Log the type of error
                         if (_packetStateFlags & PSF_RX_NAK) {
-                            LOG_DEBUG(TAG, "TX NAK'ed, packet %d, at retry number: %d", _txDataDequeuedPacket[1], _txRetries);
+                            LOG_DEBUG(TAG, "SP8 NAK'ed the previously TX'd packet %d, at retry number: %d", _txDataDequeuedPacket[1], _txRetries);
                         }
                         // Retransmit the current packet
                         _packetState = PRX_TX;
@@ -595,7 +596,7 @@ void Panel::_commStateMachine() {
                     }
                     else {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
-                         LOG_ERROR(TAG, "Transmit NAK hard error");
+                         LOG_ERROR(TAG, "SP8 Transmit NAK hard error");
                          _reportCbusLinkError();
                         _ec.tx_hard_errors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
@@ -606,7 +607,7 @@ void Panel::_commStateMachine() {
                     if(_txRetries < PANEL_MAX_RETRIES) {
                         _txRetries++;
                         // Log the type of error
-                        LOG_DEBUG(TAG, "TX timeout, packet %d, at retry number: %d, _now: %d, _txtimer: %d",
+                        LOG_DEBUG(TAG, "SP8 TX timeout, packet %d, at retry number: %d, _now: %d, _txtimer: %d",
                         _txDataDequeuedPacket[1], _txRetries, now, _txTimer);
 
                         // Retransmit the current packet
@@ -616,7 +617,7 @@ void Panel::_commStateMachine() {
                     }
                     else {
                         //The link is really messed up, or there is a bug.  We have to discard the packet
-                         LOG_ERROR(TAG, "Transmit time out hard error");
+                         LOG_ERROR(TAG, "SP8 Transmit time out hard error");
                         _reportCbusLinkError();
                         _ec.tx_hard_errors++;
                         _packetStateFlags &= ~(PSF_RX_FLAGS | PSF_TX_BUSY);
@@ -626,7 +627,7 @@ void Panel::_commStateMachine() {
             }
             // If any bad packet
             else if(_packetStateFlags & PSF_BAD_PACKET) {
-                LOG_DEBUG(TAG, "Received bad packet, sending NAK");
+                LOG_DEBUG(TAG, "Received bad packet from SP8, sending NAK");
                 // Packet failed validation send NAK
                 _makeTxAckNakPacket(PT_NAK, 0); 
                 // Transmit it
@@ -653,7 +654,7 @@ void Panel::_commStateMachine() {
 
         case PRX_TX: // Transmit a packet in the pool
             _txTimer = millis();
-            LOG_DEBUG(TAG, "Transmitting packet number: %d, _txTimer %d", _txDataDequeuedPacket[1], _txTimer);
+            LOG_DEBUG(TAG, "Transmitting packet number to SP8: %d, _txTimer %d", _txDataDequeuedPacket[1], _txTimer);
             _txFrame(_txDataDequeuedPacket);
             _packetState = PRX_STATE_IDLE;
             break;
@@ -754,16 +755,24 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
     led.ecpFlash();
     _messageInactivityTimer = millis();
 
-   
+    if((record_type == KEYPAD_RECORD_KEYS) && (record_data_length == 0) ) { // If the data length is 0 on keypresses, ignore the message
+        // One of my 6160's does this if it is powered off and on rapidly
+        LOG_DEBUG(TAG, "Received KEYPAD_RECORD_KEYS message with zero length, IGNORING....");
+        return;
+    }
+
+
+    LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
+
+
     memset(pke.record_data, 0xFF, MAX_KEYPAD_DATA_LENGTH);
     uint8_t clipped_record_data_length = (record_data_length > MAX_KEYPAD_DATA_LENGTH) ? MAX_KEYPAD_DATA_LENGTH : record_data_length;
     if(clipped_record_data_length){
         memcpy(pke.record_data, record_data, clipped_record_data_length);
     }
   
-    _makeTxDataPacket(_txDataQueuedPacket, RTYPE_DATA_FROM_KEYPAD, &pke);
-    LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
   
+    _makeTxDataPacket(_txDataQueuedPacket, RTYPE_DATA_FROM_KEYPAD, &pke);
 
     bool res = _queueTxPacket(_txDataQueuedPacket);
     if(res == false){
