@@ -761,7 +761,7 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
 
     if((record_type == KEYPAD_RECORD_KEYS) && (record_data_length == 0) ) { // If the data length is 0 on keypresses, ignore the message
         // One of my 6160's does this if it is powered off and on rapidly
-        LOG_DEBUG(TAG, "Received KEYPAD_RECORD_KEYS message with zero length, IGNORING....");
+        LOG_DEBUG(TAG, "Received KEYPAD_RECORD_KEYS message from keypad %02X with zero length, IGNORING....", keypad_addr);
         return;
     }
 
