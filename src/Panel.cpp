@@ -498,7 +498,11 @@ void Panel::_processDataPacket() {
                     seq.setLCDLine2(&_f7, kc->line2, kc->lenLine2);
                     seq.setLcdBackLight(&_f7, kc->back_light);
                     seq.setKeypadAddressBits(&_f7, kc->keypad_address);
-                    seq.submitDisplayPacket(&_f7);
+
+                    // Submit display update to sequencer buffer pool
+                    if(seq.submitDisplayPacket(&_f7) == false) {
+                        LOG_WARN(TAG, "Display Packet sequencer buffer pool full, display update will be ignored");
+                    }
                 }
                 else {
                     LOG_DEBUG(TAG, "Incorrect length for payload packet header and payload packet size: is: %d, s/b: %d", cph->data_length,len1);

@@ -28,6 +28,12 @@
 
 #define DEBUG_PIN PA4
 
+/*
+* Macros
+*/
+
+#define NEXT_QUEUE_INDEX(prev, depth) ((prev + 1 >= depth)? 0 : prev + 1)
+#define TEST_TIMER(timer, duration) ((((uint32_t) millis()) - timer) > duration)
 
 /*
 * Enums used in communication with the panel

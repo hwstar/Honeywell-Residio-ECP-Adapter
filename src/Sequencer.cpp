@@ -35,28 +35,27 @@ uint8_t Sequencer::_readBytes(uint8_t *buffer, uint8_t byte_count){
 }
 
 
-
 /*
-* Setup function. 
+* Handle updating the display by checking to see if a display update is in process
+* and there is something in the display queue to send to the display.
+*
+* Will return false if there is no update to process.
 */
 
-
-void Sequencer::begin(EcpSoftwareSerial *ecp_obj, void (*keypad_action)(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action)) {
-    pEcp = ecp_obj;
-    pCallback = keypad_action;
-    state = SEQ_STATE_IDLE;
-    rxParityErrors = 0;
-    rxChecksumErrors = 0;
-    pollByteCount = 0;
-    validPacket=false;
-   
-
-    pollInactiveTime = millis();
-  
-
-
-
+bool Sequencer::_handleDisplayUpdates() {
+    if(displayUpdateBusy || (headF7 == tailF7)){
+        return false;
+    }
+    // Copy the packet from the pool to the transmit buffer.
+    memcpy(displayPacketF7, &f7Pool[tailF7], DISPLAY_PACKET_SIZE_F7);
+    // Calculate and add the checksum
+    displayPacketF7[DISPLAY_PACKET_SIZE_F7 - 4] = pEcp->calculateChecksum(displayPacketF7, DISPLAY_PACKET_SIZE_F7 - 4);
+    tailF7 = NEXT_QUEUE_INDEX(tailF7, POOL_SIZE_F7);
+    // Tell the sequencer we would like to update the display.
+    displayUpdateBusy = true;
+    return true;
 }
+
 
 void Sequencer::_handleECP() {
 
@@ -305,14 +304,6 @@ void Sequencer::_handleECP() {
 
 }
 
-/*
-* This must be called periodically from the loop() function in main.cpp 
-*/
-
-void Sequencer::update() {
-    _handleECP();
-}
-
 
 /*
 * Format display packet from a chunk of randomly initialized memory
@@ -483,36 +474,22 @@ void Sequencer::setLCDLine2(void *dp, uint8_t *line, uint8_t length) {
 
 
 /*
-* Submit the display packet for transmission to the displays.
+* Suubmit a display packet to the buffer pool. Called when there is a display update which needs to
+* be sent to the displays.
 *
-* Will return false if a prior transmission is in progress else true.
+* Returns true when the packet is sucessfully submitted, or false if the buffer pool is full.
 */
-
-
-
 
 bool Sequencer::submitDisplayPacket(void *dp) {
-    if(displayUpdateBusy){
+    uint8_t next_head = NEXT_QUEUE_INDEX(headF7, POOL_SIZE_F7);
+    // If pool is full, return false
+    if(next_head == tailF7) {
         return false;
     }
-    // Copy the packet
-    memcpy(displayPacketF7, dp, DISPLAY_PACKET_SIZE_F7);
-    // Calculate and add the checksum
-    displayPacketF7[DISPLAY_PACKET_SIZE_F7 - 4] = pEcp->calculateChecksum(displayPacketF7, DISPLAY_PACKET_SIZE_F7 - 4);
-    // Tell the sequencer we would like to update the display.
-    displayUpdateBusy = true;
+    memcpy(&f7Pool[headF7], dp, sizeof(Packet_F7));
+    headF7 = next_head;
     return true;
 }
-
-/*
-* Return true if we are busy transmitting a display message
-*/
-
-bool Sequencer::getDisplayUpdateBusy() {
-    return displayUpdateBusy;
-    
-}
-
 
 
 uint32_t Sequencer::getParityErrorCount(bool reset){
@@ -532,4 +509,35 @@ uint32_t Sequencer::getChecksumErrorCount(bool reset){
     return x;
     
 }
+
+
+
+/*
+* Setup function. 
+*/
+
+
+void Sequencer::begin(EcpSoftwareSerial *ecp_obj, void (*keypad_action)(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data, uint8_t action)) {
+    pEcp = ecp_obj;
+    pCallback = keypad_action;
+    state = SEQ_STATE_IDLE;
+    rxParityErrors = 0;
+    rxChecksumErrors = 0;
+    pollByteCount = 0;
+    validPacket=false;
+    headF7 = tailF7 = 0;
+    pollInactiveTime = millis();
+}
+
+/*
+* This must be called periodically from the loop() function in main.cpp 
+*/
+
+void Sequencer::update() {
+    _handleECP();
+    _handleDisplayUpdates();
+}
+
+
+
 

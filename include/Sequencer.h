@@ -10,6 +10,7 @@
 #define PACKET_BUFFER_SIZE 64
 #define CODE_DIGIT_BUFFER_SIZE  (MAX_CODE_LENGTH + 1)
 #define MAX_KEYPADS 8
+#define POOL_SIZE_F7 4
 
 
 enum {SEQ_STATE_IDLE = 0, SEQ_STATE_WAIT_POLL_CYCLE, SEQ_STATE_WAIT_BEFORE_F6, 
@@ -61,6 +62,8 @@ private:
     uint8_t pollBuffer[3];
     uint8_t packetLength;
     uint8_t indexF7;
+    uint8_t headF7;
+    uint8_t tailF7;
     uint8_t packet[PACKET_BUFFER_SIZE];
     uint8_t displayPacketF7[DISPLAY_PACKET_SIZE_F7];
     uint32_t rxParityErrors;
@@ -69,6 +72,7 @@ private:
     uint32_t readStartTime;
     uint32_t pollWaitTime;
 
+    Packet_F7 f7Pool[POOL_SIZE_F7];
     Packet_F7 f7;
 
     keypad_callback pCallback;
@@ -77,6 +81,7 @@ private:
     void _handleECP();
     uint8_t _translateKeypadDigit(uint8_t digit);
     uint8_t _readBytes(uint8_t *buffer, uint8_t byte_count);
+    bool _handleDisplayUpdates();
 
 
 public:
@@ -112,8 +117,6 @@ public:
     void setLCDLine2(void *dp, uint8_t *line, uint8_t length);
 
     bool submitDisplayPacket(void *dp);
-
-    bool getDisplayUpdateBusy();
 
     uint32_t getParityErrorCount(bool reset = false);
 
