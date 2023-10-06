@@ -4,7 +4,9 @@
 #include <Arduino.h>
 #include <Sequencer.h>
 #include <EcpSoftwareSerial.h>
+#include <easylog.h>
 
+#define TAG sequencer
 
 #define ARMED_STAY_BIT 0x80
 #define READY_BIT 0x10 
@@ -69,6 +71,7 @@ void Sequencer::_handleECP() {
         case SEQ_STATE_IDLE:
             // Wait for poll interval timer to expire
             if(millis() - pollInactiveTime > DELAY_POLL_INACTIVE_MS) {
+                digitalWrite(DEBUG_PIN_ECP_PARITY_ERR, 0);
                 pEcp->initiateKeypadPollSequence();
                 state = SEQ_STATE_WAIT_POLL_CYCLE; 
             }
@@ -163,6 +166,7 @@ void Sequencer::_handleECP() {
                 packetLength = packet[1] & ~INIT_MESSAGE_BIT;
                 if(packetLength >= (sizeof(packet) - 2)){
                     // It's too big.  Abort
+                    LOG_WARN(TAG, "Packet received is too big to fit in the buffer");
                     state = SEQ_STATE_FINISH_UP;
                     return;
                 }
@@ -171,11 +175,14 @@ void Sequencer::_handleECP() {
                     // We timed out on the packet, reset and start over
                     packetLength = 0;
                     state = SEQ_STATE_FINISH_UP;
+                    LOG_WARN(TAG, "Packet time out");
                     return;
                 }
                 // Check for parity errors
                 if(pEcp->getParityError() == true) {
                     // Abort packet due to parity error
+                    digitalWrite(DEBUG_PIN_ECP_PARITY_ERR, 1);
+                    LOG_WARN(TAG, "Packet parity error");
                     rxParityErrors++;
                     state = SEQ_STATE_FINISH_UP;
                     return;
@@ -184,6 +191,8 @@ void Sequencer::_handleECP() {
                 uint8_t res = pEcp->calculateChecksum(packet, packetLength + 2);
                 if(res){
                     // Bad checksum
+                    //digitalWrite(DEBUG_PIN_ECP_DATA_ERR, 1);
+                    LOG_WARN(TAG, "Packet checksum error");
                     rxChecksumErrors++;
                     state = SEQ_STATE_FINISH_UP;
                     return;
@@ -195,6 +204,7 @@ void Sequencer::_handleECP() {
             }
             else {
                 // Didn't get 2 bytes
+                LOG_WARN(TAG, "Packet time out on first 2 bytes");
                 state = SEQ_STATE_FINISH_UP;
             }
             break;
@@ -474,7 +484,7 @@ void Sequencer::setLCDLine2(void *dp, uint8_t *line, uint8_t length) {
 
 
 /*
-* Suubmit a display packet to the buffer pool. Called when there is a display update which needs to
+* Submit a display packet to the buffer pool. Called when there is a display update which needs to
 * be sent to the displays.
 *
 * Returns true when the packet is sucessfully submitted, or false if the buffer pool is full.

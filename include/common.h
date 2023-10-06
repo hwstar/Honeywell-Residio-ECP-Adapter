@@ -15,7 +15,10 @@
 
 #define ECP_RX PA7
 #define ECP_TX PA6
-#define ECP_DEBUG PA5
+#define DEBUG_PIN PA4 // General purpose debug pin for scoping.
+#define DEBUG_PIN_ECP_PARITY_ERR PB3 // Rises on parite error, falls at the beginning of a ECP packet transfer.
+#define ECP_DEBUG PA5 // Debug output for software UART sampling point
+#define DEBUG_RX_SAMPLING // Uncomment for output on ECP_DEBUG which will show the rx data sampling point on each edge on a scope
 
 #define CONSOLE_RX PA10
 #define CONSOLE_TX PA9
@@ -26,7 +29,9 @@
 #define ECP_COMM_LED PC13
 #define CBUS_COMM_LED PA0
 
-#define DEBUG_PIN PA4
+
+
+
 
 /*
 * Macros

@@ -99,10 +99,12 @@ void setup() {
   pinMode(ECP_COMM_LED, OUTPUT);
   pinMode(CBUS_COMM_LED, OUTPUT);
   pinMode(DEBUG_PIN, OUTPUT);
+  pinMode(DEBUG_PIN_ECP_PARITY_ERR, OUTPUT);
 
   digitalWrite(ECP_COMM_LED, true); // ECP comm led off
   digitalWrite(CBUS_COMM_LED, true); // CBUS comm led off
   digitalWrite(DEBUG_PIN, false);
+  digitalWrite(DEBUG_PIN_ECP_PARITY_ERR, false);
 
   SerialConsole.begin(115200);
   SerialPanel.begin(19200);
