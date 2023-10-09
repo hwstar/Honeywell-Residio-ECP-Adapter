@@ -7,17 +7,15 @@
 #include <common.h>
 
 class Led {
-    private:
-        bool _ecpLedActive;
-        bool _cbusLedActive;
-        uint32_t _ecpLedTimer;
-        uint32_t _cbusLedTimer;
+ private:
+  bool _ecpLedActive;
+  bool _cbusLedActive;
+  uint32_t _ecpLedTimer;
+  uint32_t _cbusLedTimer;
 
-    public:
-        void ecpFlash();
-        void cbusFlash();
-        void begin();
-        void loop();
-
+ public:
+  void ecpFlash();
+  void cbusFlash();
+  void begin();
+  void loop();
 };
-

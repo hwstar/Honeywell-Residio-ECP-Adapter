@@ -18,7 +18,6 @@
 
 #if LOG_LEVEL != LOG_LEVEL_NONE
 
-
 #ifndef LOG_OBJECT
 extern HardwareSerial SerialConsole;
 #define LOG_OBJECT SerialConsole
@@ -29,7 +28,6 @@ extern HardwareSerial SerialConsole;
 #endif
 
 #define LOG_FUNCTION(format, ...) LOG_OBJECT.LOG_METHOD(F(format), ##__VA_ARGS__)
-
 
 #define LEVEL_LOG(level, tag, format, ...) \
   LOG_FUNCTION("%s:%s:%" PRIu16 " " format "\r\n", F(#level), F(#tag), __LINE__, ##__VA_ARGS__)
@@ -69,4 +67,3 @@ extern HardwareSerial SerialConsole;
 #define TAG_LOG(level, tag, format, ...) LOG_##level(tag, format, ##__VA_ARGS__)
 
 #define LOG(level, format, ...) TAG_LOG(level, LOG_TAG, format, ##__VA_ARGS__)
-

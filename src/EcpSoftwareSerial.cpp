@@ -37,7 +37,6 @@
 //
 #include "EcpSoftwareSerial.h"
 
-
 //
 // Static
 //
@@ -46,27 +45,22 @@ EcpSoftwareSerial *EcpSoftwareSerial::active_listener = nullptr;
 EcpSoftwareSerial *volatile EcpSoftwareSerial::active_out = nullptr;
 EcpSoftwareSerial *volatile EcpSoftwareSerial::active_in = nullptr;
 
-int32_t EcpSoftwareSerial::tx_tick_cnt = 0; // OVERSAMPLE ticks needed for a bit
+int32_t EcpSoftwareSerial::tx_tick_cnt = 0;           // OVERSAMPLE ticks needed for a bit
 int32_t volatile EcpSoftwareSerial::rx_tick_cnt = 0;  // OVERSAMPLE ticks needed for a bit
 uint32_t EcpSoftwareSerial::tx_buffer = 0;
 int32_t EcpSoftwareSerial::tx_bit_cnt = 0;
 uint32_t EcpSoftwareSerial::rx_buffer = 0;
-int32_t EcpSoftwareSerial::rx_bit_cnt = -1; // rx_bit_cnt = -1 :  waiting for start bit
+int32_t EcpSoftwareSerial::rx_bit_cnt = -1;  // rx_bit_cnt = -1 :  waiting for start bit
 uint8_t volatile EcpSoftwareSerial::pollState = POLL_SM_IDLE;
 uint8_t volatile EcpSoftwareSerial::pollResult = 0;
 uint8_t volatile EcpSoftwareSerial::pollByteCount = 0;
 uint32_t volatile EcpSoftwareSerial::startBitLength = 1;
 
-
-
-
 //
 // Private methods
 //
 
-void EcpSoftwareSerial::setSpeed(uint32_t speed)
-{
-
+void EcpSoftwareSerial::setSpeed(uint32_t speed) {
   timer_bit.pause();
   if (speed != 0) {
     // Disable the timer
@@ -77,8 +71,9 @@ void EcpSoftwareSerial::setSpeed(uint32_t speed)
     // Calculate prescale an compare value
     do {
       cmp_value = clock_rate / (speed * OVERSAMPLE);
-      if (cmp_value >= UINT16_MAX) {      rx_bit_cnt++; // Prepare for next bit
-        rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
+      if (cmp_value >= UINT16_MAX) {
+        rx_bit_cnt++;              // Prepare for next bit
+        rx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE ticks before sampling next bit
         clock_rate = clock_rate / 2;
         pre *= 2;
       }
@@ -91,22 +86,21 @@ void EcpSoftwareSerial::setSpeed(uint32_t speed)
   } else {
     timer_bit.detachInterrupt();
   }
-
 }
 
 // This function sets the current object as the "listening"
 // one and returns true if it replaces another
-bool EcpSoftwareSerial::listen()
-{
+bool EcpSoftwareSerial::listen() {
   if (active_listener != this) {
     // wait for any transmit to complete as we may change speed
-    while (active_out);
-    if (active_listener != nullptr) {      rx_bit_cnt++; // Prepare for next bit
-        rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
-        
+    while (active_out)
+      ;
+    if (active_listener != nullptr) {
+      rx_bit_cnt++;              // Prepare for next bit
+      rx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE ticks before sampling next bit
     }
-    rx_tick_cnt = 1; // 1 : next interrupt will decrease rx_tick_cnt to 0 which means RX pin level will be considered.
-    rx_bit_cnt = -1; // rx_bit_cnt = -1 :  waiting for start bit
+    rx_tick_cnt = 1;  // 1 : next interrupt will decrease rx_tick_cnt to 0 which means RX pin level will be considered.
+    rx_bit_cnt = -1;  // rx_bit_cnt = -1 :  waiting for start bit
     active_listener = this;
     active_in = this;
     return true;
@@ -115,11 +109,11 @@ bool EcpSoftwareSerial::listen()
 }
 
 // Stop listening. Returns true if we were actually listening.
-bool EcpSoftwareSerial::stopListening()
-{
+bool EcpSoftwareSerial::stopListening() {
   if (active_listener == this) {
     // wait for any output to complete
-    while (active_out);
+    while (active_out)
+      ;
     active_listener = nullptr;
     active_in = nullptr;
     return true;
@@ -127,8 +121,7 @@ bool EcpSoftwareSerial::stopListening()
   return false;
 }
 
-inline void EcpSoftwareSerial::setTX()
-{
+inline void EcpSoftwareSerial::setTX() {
   if (_tx_inverse_logic) {
     LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
   } else {
@@ -137,28 +130,26 @@ inline void EcpSoftwareSerial::setTX()
   pinMode(_transmitPin, OUTPUT);
 }
 
-inline void EcpSoftwareSerial::setRX()
-{
-  pinMode(_receivePin, INPUT); // No pull up or pull down. This is handled by the external voltage divider
+inline void EcpSoftwareSerial::setRX() {
+  pinMode(_receivePin, INPUT);  // No pull up or pull down. This is handled by the external voltage divider
 }
 
 //
 // The poll routine called by the interrupt handler
 //
 
-inline void EcpSoftwareSerial::do_poll()
-{
-  #ifdef DEBUG_POLL_TICKS
-  if(_debug_pin_toggle_state) {
-    LL_GPIO_SetOutputPin(_debugPinPort,_debugPinNumber);
+inline void EcpSoftwareSerial::do_poll() {
+#ifdef DEBUG_POLL_TICKS
+  if (_debug_pin_toggle_state) {
+    LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
   } else {
     LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
   }
   _debug_pin_toggle_state ^= 1;
-  #endif
+#endif
 
   tx_bit_cnt++;
-  switch(pollState){
+  switch (pollState) {
     case POLL_SM_IDLE:
       break;
 
@@ -172,7 +163,7 @@ inline void EcpSoftwareSerial::do_poll()
       break;
 
     case POLL_SM_WAIT_START_DONE:
-      if(tx_bit_cnt >= TICKS_POLL_START){
+      if (tx_bit_cnt >= TICKS_POLL_START) {
         tx_bit_cnt = 0;
         pollByteCount = 0;
         // Set TxD high
@@ -182,7 +173,7 @@ inline void EcpSoftwareSerial::do_poll()
       break;
 
     case POLL_SM_SEND_ZERO_BYTE:
-      if(tx_bit_cnt >= TICKS_POLL_HIGH){
+      if (tx_bit_cnt >= TICKS_POLL_HIGH) {
         // Set TxD low
         LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
         tx_bit_cnt = 0;
@@ -191,15 +182,15 @@ inline void EcpSoftwareSerial::do_poll()
       break;
 
     case POLL_SM_SEND_BYTE_DELAY:
-      if(tx_bit_cnt >= TICKS_POLL_LOW) {
+      if (tx_bit_cnt >= TICKS_POLL_LOW) {
         pollByteCount++;
         tx_bit_cnt = 0;
 
         // Set TxD high
- 
+
         LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
-      
-        if(pollByteCount >= 2){
+
+        if (pollByteCount >= 2) {
           // Done
           // Turn on parity
           setParity(true);
@@ -220,7 +211,7 @@ inline void EcpSoftwareSerial::do_poll()
       break;
 
     case POLL_SM_CHECK_TX_REQUEST:
-      if(tx_bit_cnt >= TICKS_TX_REQUEST) {
+      if (tx_bit_cnt >= TICKS_TX_REQUEST) {
         this->active_out = nullptr;
         pollState = POLL_SM_IDLE;
       }
@@ -229,36 +220,34 @@ inline void EcpSoftwareSerial::do_poll()
     default:
       this->active_out = nullptr;
       pollState = POLL_SM_IDLE;
-
   }
-
-
 }
 
 //
 // The transmit routine called by the interrupt handler
 //
 
-inline void EcpSoftwareSerial::send()
-{
-  if (--tx_tick_cnt <= 0) { // if tx_tick_cnt > 0 interrupt is discarded. Only when the tx_tick_cnt reaches 0 do we set TX pin.
-    if (tx_bit_cnt < tx_total_bits) { // ECP-specific tx_bit_cnt: 11 (11: = 1 start + 8 bits + 2 stop) or 12: (1 start + 8 bits + even parity + 2 stop)
+inline void EcpSoftwareSerial::send() {
+  if (--tx_tick_cnt <=
+      0) {  // if tx_tick_cnt > 0 interrupt is discarded. Only when the tx_tick_cnt reaches 0 do we set TX pin.
+    if (tx_bit_cnt < tx_total_bits) {  // ECP-specific tx_bit_cnt: 11 (11: = 1 start + 8 bits + 2 stop) or 12: (1 start
+                                       // + 8 bits + even parity + 2 stop)
       // send data (including start and stop bits)
       if (tx_buffer & 1) {
         LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
       } else {
         LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
       }
-      if(startBitLength){
+      if (startBitLength) {
         startBitLength--;
       }
-      if(startBitLength){
-        return; // Long start bit in process
+      if (startBitLength) {
+        return;  // Long start bit in process
       }
       tx_bit_cnt++;
       tx_buffer >>= 1;
-      tx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE tick to send next bit
-    } else { // Transmission finished
+      tx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE tick to send next bit
+    } else {                     // Transmission finished
       tx_tick_cnt = 1;
       if (_output_pending) {
         active_out = nullptr;
@@ -272,54 +261,55 @@ inline void EcpSoftwareSerial::send()
 //
 // The receive routine called by the interrupt handler
 //
-inline void EcpSoftwareSerial::recv()
-{
+inline void EcpSoftwareSerial::recv() {
+  if (parity == false) {  // Case 2 stop bits, no parity
 
-  if(parity == false){ // Case 2 stop bits, no parity
-   
-    if (--rx_tick_cnt <= 0) { // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reach 0 RX pin is considered
+    if (--rx_tick_cnt <=
+        0) {  // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reach 0 RX pin is considered
       bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _rx_inverse_logic;
       if (rx_bit_cnt == -1) {  // rx_bit_cnt = -1 :  waiting for start bit
         if (!inbit) {
-          #ifdef DEBUG_RX_SAMPLING
+#ifdef DEBUG_RX_SAMPLING
           if (_debugPin) {
-            if(_debug_pin_toggle_state) {
-              LL_GPIO_SetOutputPin(_debugPinPort,_debugPinNumber);
+            if (_debug_pin_toggle_state) {
+              LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
             } else {
               LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
             }
             _debug_pin_toggle_state ^= 1;
           }
-          #endif
+#endif
           // got start bit
-          rx_bit_cnt = 0; // rx_bit_cnt == 0 : start bit received
-          rx_tick_cnt = OVERSAMPLE + 1; // Wait 1 bit (OVERSAMPLE ticks) + 1 tick in order to sample RX pin in the middle of the bit cell (and not too close to the edge)
+          rx_bit_cnt = 0;                // rx_bit_cnt == 0 : start bit received
+          rx_tick_cnt = OVERSAMPLE + 1;  // Wait 1 bit (OVERSAMPLE ticks) + 1 tick in order to sample RX pin in the
+                                         // middle of the bit cell (and not too close to the edge)
           rx_buffer = 0;
         } else {
-          rx_tick_cnt = 1; // Waiting for start bit, but we don't get right level. Wait for next Interrupt to check RX pin level
+          rx_tick_cnt =
+              1;  // Waiting for start bit, but we don't get right level. Wait for next Interrupt to check RX pin level
         }
       } else if (rx_bit_cnt == 8) {
-          rx_bit_cnt++; // Prepare for next bit
-          rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
-      } else if (rx_bit_cnt >= 9) { // rx_bit_cnt >= 8 : waiting for second stop bit
-        #ifdef DEBUG_RX_SAMPLING
+        rx_bit_cnt++;                // Prepare for next bit
+        rx_tick_cnt = OVERSAMPLE;    // Wait OVERSAMPLE ticks before sampling next bit
+      } else if (rx_bit_cnt >= 9) {  // rx_bit_cnt >= 8 : waiting for second stop bit
+#ifdef DEBUG_RX_SAMPLING
         if (_debugPin) {
-          if(_debug_pin_toggle_state) {
+          if (_debug_pin_toggle_state) {
             LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
           } else {
             LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
           }
           _debug_pin_toggle_state ^= 1;
         }
-          #endif
+#endif
         if (inbit) {
           // stop bit read complete add to buffer
           uint8_t next = (_receive_buffer_tail + 1) % _SS_MAX_RX_BUFF;
           if (next != _receive_buffer_head) {
             // save new data in buffer: tail points to where byte goes
-            _receive_buffer[_receive_buffer_tail] = rx_buffer; // save new byte
+            _receive_buffer[_receive_buffer_tail] = rx_buffer;  // save new byte
             _receive_buffer_tail = next;
-          } else { // rx_bit_cnt = x  with x = [0..7] correspond to new bit x received
+          } else {  // rx_bit_cnt = x  with x = [0..7] correspond to new bit x received
             _buffer_overflow = true;
           }
         }
@@ -327,111 +317,112 @@ inline void EcpSoftwareSerial::recv()
         rx_tick_cnt = 1;
         rx_bit_cnt = -1;
       } else {
-      #ifdef DEBUG_RX_SAMPLING
-      if (_debugPin) {
-        if(_debug_pin_toggle_state) {
-          LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
-        } else {
-          LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
-        }
-        _debug_pin_toggle_state ^= 1;
-      }         // Set TxD high
-          if(_tx_inverse_logic){
-            LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+#ifdef DEBUG_RX_SAMPLING
+        if (_debugPin) {
+          if (_debug_pin_toggle_state) {
+            LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
           } else {
-            LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+            LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
           }
-      #endif
+          _debug_pin_toggle_state ^= 1;
+        }  // Set TxD high
+        if (_tx_inverse_logic) {
+          LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+        } else {
+          LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+        }
+#endif
         // data bits
         rx_buffer >>= 1;
         if (inbit) {
           rx_buffer |= 0x80;
         }
-        rx_bit_cnt++; // Prepare for next bit
-        rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
+        rx_bit_cnt++;              // Prepare for next bit
+        rx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE ticks before sampling next bit
       }
     }
-  }
-  else { // Case: 2 stop bits, with parity
-    if (--rx_tick_cnt <= 0) { // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reaches 0 RX pin is considered
+  } else {  // Case: 2 stop bits, with parity
+    if (--rx_tick_cnt <=
+        0) {  // if rx_tick_cnt > 0 interrupt is discarded. Only when rx_tick_cnt reaches 0 RX pin is considered
       bool inbit = LL_GPIO_IsInputPinSet(_receivePinPort, _receivePinNumber) ^ _rx_inverse_logic;
       if (rx_bit_cnt == -1) {  // rx_bit_cnt = -1 :  waiting for start bit
         if (!inbit) {
-          // got start bit
-          #ifdef DEBUG_RX_SAMPLING
+// got start bit
+#ifdef DEBUG_RX_SAMPLING
           if (_debugPin) {
-            if(_debug_pin_toggle_state) {
+            if (_debug_pin_toggle_state) {
               LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
             } else {
               LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
             }
             _debug_pin_toggle_state ^= 1;
           }
-          #endif
-          rx_bit_cnt = 0; // rx_bit_cnt == 0 : start bit received
-          rx_tick_cnt = OVERSAMPLE + 1; // Wait 1 bit (OVERSAMPLE ticks) + 1 tick in order to sample RX pin in the middle of the bit cell (and not too close to the edge)
+#endif
+          rx_bit_cnt = 0;                // rx_bit_cnt == 0 : start bit received
+          rx_tick_cnt = OVERSAMPLE + 1;  // Wait 1 bit (OVERSAMPLE ticks) + 1 tick in order to sample RX pin in the
+                                         // middle of the bit cell (and not too close to the edge)
           rx_buffer = 0;
         } else {
-          rx_tick_cnt = 1; // Waiting for start bit, but we don't get right level. Wait for next Interrupt to check RX pin level
+          rx_tick_cnt =
+              1;  // Waiting for start bit, but we don't get right level. Wait for next Interrupt to check RX pin level
         }
-      } else if (rx_bit_cnt == 8) { // check parity bit
-          uint8_t cp;
-          #ifdef DEBUG_RX_SAMPLING
-          if (_debugPin) {
-            if(_debug_pin_toggle_state) {
-              LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
-            } else {
-              LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
-            }
-            _debug_pin_toggle_state ^= 1;
-          }
-          #endif
-          // Calculate parity bit
-          cp = rx_buffer;
-          cp = cp ^ (cp >> 4 | cp << 4);
-          cp = cp ^ (cp >> 2);
-          cp = cp ^ (cp >> 1);
-          cp &= 1; 
-          if(cp != inbit){
-            rxParityError = true;
-          }
-          rx_bit_cnt++; // Prepare for next bit
-          rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
-
-
-      } else if (rx_bit_cnt == 9)  { // first stop bit
-          #ifdef DEBUG_RX_SAMPLING
-          if (_debugPin) {
-            if(_debug_pin_toggle_state) {
-              LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
-            } else {
-              LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
-            }
-            _debug_pin_toggle_state ^= 1;
-          }
-          #endif
-        rx_bit_cnt++; // Prepare for next bit
-        rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
-
-      } else if (rx_bit_cnt >= 10) { // rx_bit_cnt >= 10 :  second stop bit
-        #ifdef DEBUG_RX_SAMPLING
+      } else if (rx_bit_cnt == 8) {  // check parity bit
+        uint8_t cp;
+#ifdef DEBUG_RX_SAMPLING
         if (_debugPin) {
-          if(_debug_pin_toggle_state) {
+          if (_debug_pin_toggle_state) {
             LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
           } else {
             LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
           }
-            _debug_pin_toggle_state ^= 1;
+          _debug_pin_toggle_state ^= 1;
         }
-          #endif
+#endif
+        // Calculate parity bit
+        cp = rx_buffer;
+        cp = cp ^ (cp >> 4 | cp << 4);
+        cp = cp ^ (cp >> 2);
+        cp = cp ^ (cp >> 1);
+        cp &= 1;
+        if (cp != inbit) {
+          rxParityError = true;
+        }
+        rx_bit_cnt++;              // Prepare for next bit
+        rx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE ticks before sampling next bit
+
+      } else if (rx_bit_cnt == 9) {  // first stop bit
+#ifdef DEBUG_RX_SAMPLING
+        if (_debugPin) {
+          if (_debug_pin_toggle_state) {
+            LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
+          } else {
+            LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
+          }
+          _debug_pin_toggle_state ^= 1;
+        }
+#endif
+        rx_bit_cnt++;              // Prepare for next bit
+        rx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE ticks before sampling next bit
+
+      } else if (rx_bit_cnt >= 10) {  // rx_bit_cnt >= 10 :  second stop bit
+#ifdef DEBUG_RX_SAMPLING
+        if (_debugPin) {
+          if (_debug_pin_toggle_state) {
+            LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
+          } else {
+            LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
+          }
+          _debug_pin_toggle_state ^= 1;
+        }
+#endif
         if (inbit) {
           // stop bit read complete add to buffer
           uint8_t next = (_receive_buffer_tail + 1) % _SS_MAX_RX_BUFF;
           if (next != _receive_buffer_head) {
             // save new data in buffer: tail points to where byte goes
-            _receive_buffer[_receive_buffer_tail] = rx_buffer; // save new byte
+            _receive_buffer[_receive_buffer_tail] = rx_buffer;  // save new byte
             _receive_buffer_tail = next;
-          } else { // rx_bit_cnt = x  with x = [0..7] correspond to new bit x received
+          } else {  // rx_bit_cnt = x  with x = [0..7] correspond to new bit x received
             _buffer_overflow = true;
           }
         }
@@ -439,84 +430,73 @@ inline void EcpSoftwareSerial::recv()
         rx_tick_cnt = 1;
         rx_bit_cnt = -1;
       } else {
-        #ifdef DEBUG_RX_SAMPLING
+#ifdef DEBUG_RX_SAMPLING
         if (_debugPin) {
-          if(_debug_pin_toggle_state) {
+          if (_debug_pin_toggle_state) {
             LL_GPIO_SetOutputPin(_debugPinPort, _debugPinNumber);
           } else {
             LL_GPIO_ResetOutputPin(_debugPinPort, _debugPinNumber);
           }
           _debug_pin_toggle_state ^= 1;
         }
-        #endif
+#endif
         // data bits
         rx_buffer >>= 1;
         if (inbit) {
           rx_buffer |= 0x80;
         }
-        rx_bit_cnt++; // Prepare for next bit
-        rx_tick_cnt = OVERSAMPLE; // Wait OVERSAMPLE ticks before sampling next bit
+        rx_bit_cnt++;              // Prepare for next bit
+        rx_tick_cnt = OVERSAMPLE;  // Wait OVERSAMPLE ticks before sampling next bit
       }
     }
   }
-
 }
-
-
-
 
 //
 // Interrupt handling
 //
 
 /* static */
-inline void EcpSoftwareSerial::handleInterrupt()
-{
-
+inline void EcpSoftwareSerial::handleInterrupt() {
   if (active_in) {
     active_in->recv();
   }
   if (active_out) {
-    if(pollState == POLL_SM_IDLE)
+    if (pollState == POLL_SM_IDLE)
       active_out->send();
-    else{
+    else {
       active_out->do_poll();
     }
   }
-
 }
 //
 // Constructor
 //
-EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool rx_inverse_logic /* = false */, bool tx_inverse_logic /* = false */, uint16_t debugPin /* = 0 */) :
-  _receivePin(receivePin),
-  _transmitPin(transmitPin),
-  _debugPin(debugPin),
-  _receivePinPort(digitalPinToPort(receivePin)),
-  _receivePinNumber(STM_LL_GPIO_PIN(digitalPinToPinName(receivePin))),
-  _transmitPinPort(digitalPinToPort(transmitPin)),
-  _transmitPinNumber(STM_LL_GPIO_PIN(digitalPinToPinName(transmitPin))),
-  _buffer_overflow(false),
-  _rx_inverse_logic(rx_inverse_logic),
-  _tx_inverse_logic(tx_inverse_logic),
+EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, bool rx_inverse_logic /* = false */,
+                                     bool tx_inverse_logic /* = false */, uint16_t debugPin /* = 0 */)
+    : _receivePin(receivePin),
+      _transmitPin(transmitPin),
+      _debugPin(debugPin),
+      _receivePinPort(digitalPinToPort(receivePin)),
+      _receivePinNumber(STM_LL_GPIO_PIN(digitalPinToPinName(receivePin))),
+      _transmitPinPort(digitalPinToPort(transmitPin)),
+      _transmitPinNumber(STM_LL_GPIO_PIN(digitalPinToPinName(transmitPin))),
+      _buffer_overflow(false),
+      _rx_inverse_logic(rx_inverse_logic),
+      _tx_inverse_logic(tx_inverse_logic),
 
-  _output_pending(0),
-  _receive_buffer_tail(0),
-  _receive_buffer_head(0)
-{
-
- 
-
+      _output_pending(0),
+      _receive_buffer_tail(0),
+      _receive_buffer_head(0) {
   // Set up debug pin if requested to do so
-  if(_debugPin){
+  if (_debugPin) {
     _debugPinPort = digitalPinToPort(_debugPin);
     _debugPinNumber = STM_LL_GPIO_PIN(digitalPinToPinName(debugPin));
     if (set_GPIO_Port_Clock(STM_PORT(digitalPinToPinName(debugPin))) == 0) {
       _Error_Handler("ERROR: invalid debug pin number\n", -1);
     }
-
   }
-  
+
   /* Enable GPIO clock for tx and rx pin*/
   if (set_GPIO_Port_Clock(STM_PORT(digitalPinToPinName(transmitPin))) == 0) {
     _Error_Handler("ERROR: invalid transmit pin number\n", -1);
@@ -525,30 +505,25 @@ EcpSoftwareSerial::EcpSoftwareSerial(uint16_t receivePin, uint16_t transmitPin, 
     _Error_Handler("ERROR: invalid receive pin number\n", -1);
   }
 
-      active_out = nullptr;
+  active_out = nullptr;
 }
 
 //
 // Destructor
 //
-EcpSoftwareSerial::~EcpSoftwareSerial()
-{
-  end();
-}
+EcpSoftwareSerial::~EcpSoftwareSerial() { end(); }
 
 //
 // Public methods
 //
 
-
 /*
-* Start up the software UART
-*/
+ * Start up the software UART
+ */
 
-void EcpSoftwareSerial::begin()
-{
+void EcpSoftwareSerial::begin() {
   // Set debug pin mode if defined as something other than 0
-  if(_debugPin){
+  if (_debugPin) {
     pinMode(_debugPin, OUTPUT);
   }
   setSpeed((uint32_t) ECP_BAUD_RATE);
@@ -557,55 +532,46 @@ void EcpSoftwareSerial::begin()
   listen();
 }
 
-
 /*
-* Shut down the software UART
-*/
+ * Shut down the software UART
+ */
 
-
-void EcpSoftwareSerial::end()
-{
-  stopListening();
-}
+void EcpSoftwareSerial::end() { stopListening(); }
 
 // Read data from buffer
-int EcpSoftwareSerial::read()
-{
+int EcpSoftwareSerial::read() {
   // Empty buffer?
   if (_receive_buffer_head == _receive_buffer_tail) {
     return -1;
   }
 
   // Read from "head"
-  uint8_t d = _receive_buffer[_receive_buffer_head]; // grab next byte
+  uint8_t d = _receive_buffer[_receive_buffer_head];  // grab next byte
   _receive_buffer_head = (_receive_buffer_head + 1) % _SS_MAX_RX_BUFF;
   return d;
 }
 
 /*
-* Return true if there's something in the receive buffer
-*/
+ * Return true if there's something in the receive buffer
+ */
 
-
-int EcpSoftwareSerial::available()
-{
+int EcpSoftwareSerial::available() {
   return (_receive_buffer_tail + _SS_MAX_RX_BUFF - _receive_buffer_head) % _SS_MAX_RX_BUFF;
 }
 
 /*
-* Write one byte to the software UART.
-*/
+ * Write one byte to the software UART.
+ */
 
-size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
-{
+size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */) {
   // wait for previous transmit to complete
   _output_pending = 1;
-  
+
   // Block if already transmitting
   while (active_out)
     ;
 
-  if(first_byte == true){
+  if (first_byte == true) {
     // Initialize the polling state machine
     noInterrupts();
     pollState = POLL_SM_START_TX_REQUEST;
@@ -614,18 +580,18 @@ size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
 
     // Block while waiting the prescribed delay
 
-    while(true){
+    while (true) {
       uint8_t ps;
       noInterrupts();
       ps = pollState;
       interrupts();
-      if(ps == POLL_SM_IDLE){
+      if (ps == POLL_SM_IDLE) {
         break;
       }
     }
   }
 
-  if(parity){ // Case for parity enabled
+  if (parity) {  // Case for parity enabled
     // Calculate parity bit
     uint8_t cp = b;
     cp = cp ^ (cp >> 4 | cp << 4);
@@ -658,37 +624,31 @@ size_t EcpSoftwareSerial::write(uint8_t b, bool first_byte /* = false */)
   return 1;
 }
 
-
 /*
-* Write a number of bytes to the software uart
-*/
+ * Write a number of bytes to the software uart
+ */
 
 void EcpSoftwareSerial::writeBytes(uint8_t *buffer, uint8_t length) {
-
-  for(uint8_t i = 0; i < length; i++){
+  for (uint8_t i = 0; i < length; i++) {
     write(buffer[i]);
   }
-
 }
 
 /*
-* Flush the software uart receiver
-*/
+ * Flush the software uart receiver
+ */
 
-void EcpSoftwareSerial::rx_flush()
-{
+void EcpSoftwareSerial::rx_flush() {
   noInterrupts();
   _receive_buffer_head = _receive_buffer_tail = 0;
   interrupts();
 }
 
 /*
-* Peek at what is in the receive buffer
-*/
+ * Peek at what is in the receive buffer
+ */
 
-
-int EcpSoftwareSerial::peek()
-{
+int EcpSoftwareSerial::peek() {
   // Empty buffer?
   if (_receive_buffer_head == _receive_buffer_tail) {
     return -1;
@@ -699,14 +659,12 @@ int EcpSoftwareSerial::peek()
 }
 
 /*
-* Initiate a keypad polling sequence
-*/
-
+ * Initiate a keypad polling sequence
+ */
 
 bool EcpSoftwareSerial::initiateKeypadPollSequence() {
- 
   // Return if active
-  if(getKeypadPollBusy()){
+  if (getKeypadPollBusy()) {
     return false;
   }
 
@@ -723,16 +681,16 @@ bool EcpSoftwareSerial::initiateKeypadPollSequence() {
 }
 
 /*
-*
-* This tells the keypad
-* that a new command is coming
-*/
+ *
+ * This tells the keypad
+ * that a new command is coming
+ */
 
 bool EcpSoftwareSerial::initiateNewCommand() {
   // Return if active
 
-   // Return if active
-  if(getKeypadPollBusy()){
+  // Return if active
+  if (getKeypadPollBusy()) {
     return false;
   }
 
@@ -745,49 +703,42 @@ bool EcpSoftwareSerial::initiateNewCommand() {
   return true;
 }
 
-
 /*
-* Get the state of the software UART transmitter
-*/
-
+ * Get the state of the software UART transmitter
+ */
 
 bool EcpSoftwareSerial::getTxBusy() {
-  if(active_out){
+  if (active_out) {
     return true;
-  }
-  else {
+  } else {
     return false;
   }
 }
 
-
 /*
-* Set the transmit pin state
-*/
+ * Set the transmit pin state
+ */
 
-void EcpSoftwareSerial::setTxPinState(bool state){
-  if(state){
-     LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
-  }
-  else {
-     LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
+void EcpSoftwareSerial::setTxPinState(bool state) {
+  if (state) {
+    LL_GPIO_SetOutputPin(_transmitPinPort, _transmitPinNumber);
+  } else {
+    LL_GPIO_ResetOutputPin(_transmitPinPort, _transmitPinNumber);
   }
 }
 
-void EcpSoftwareSerial::setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority)
-{
+void EcpSoftwareSerial::setInterruptPriority(uint32_t preemptPriority, uint32_t subPriority) {
   timer_bit.setInterruptPriority(preemptPriority, subPriority);
 }
 
-
 /*
-* Calculate the checksum of a packet 
-*/
+ * Calculate the checksum of a packet
+ */
 
 uint8_t EcpSoftwareSerial::calculateChecksum(uint8_t *check_packet, uint8_t length) {
   uint8_t checksum = 0;
   uint8_t i;
-  for(i = 0; i < length; i++) {
+  for (i = 0; i < length; i++) {
     checksum += check_packet[i];
   }
   // Two's complement
@@ -795,5 +746,3 @@ uint8_t EcpSoftwareSerial::calculateChecksum(uint8_t *check_packet, uint8_t leng
   checksum++;
   return checksum;
 }
-
-
