@@ -123,7 +123,6 @@ void Sequencer::_handleECP() {
     case SEQ_STATE_WAIT_F6_TIMER:
       // Wait for the poll sequence to finish
       if (!pEcp->getKeypadPollBusy()) {
-        // Flush RX buffer
 
         // We can now send the F6 command
         packet[0] = 0xF6;

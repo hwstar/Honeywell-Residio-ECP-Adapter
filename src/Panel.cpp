@@ -18,7 +18,11 @@ void Panel::_logDebugHex(const char *desc, void *p, uint32_t length) {
   uint32_t len;
 
   if (length > 16) {
-    lines = (length / 16) + 1;
+    lines = (length / 16);
+    if (length % 16) {
+      lines++;
+    }
+    
   } else {
     lines = 1;
   }
@@ -431,24 +435,17 @@ void Panel::_processDataPacket() {
       break;
     }
 
-    case RTYPE_SEND_ERROR_COUNTERS: {
-      // Return the error counters
-      const int len1 = sizeof(ErrorCounters);
-      const int len2 = sizeof(RecordTypeHeader) + sizeof(ErrorCounters);
-      if (pph->payload_len == len2) {
-        if (cph->data_length == len1) {
-          _makeTxDataPacket(_txDataQueuedPacket, RTYPE_SEND_ERROR_COUNTERS, &_ec);
-          _queueTxPacket(_txDataQueuedPacket);
-        } else {
-          LOG_DEBUG(TAG, "Incorrect length for payload packet header and payload packet size: is: %d, s/b: %d",
-                    cph->data_length, len1);
-        }
-      } else {
-        LOG_DEBUG(TAG, "Incorrect length for packet header and packet size: is: %d, s/b: %d", pph->payload_len, len2);
-      }
+    case RTYPE_SEND_ERROR_COUNTERS:
+      // Update ECP error counters
+      _ec.ecp_checksum_errors = seq.getChecksumErrorCount(false);
+      _ec.ecp_parity_errors = seq.getParityErrorCount(false);
       // Send the error counters
+      LOG_INFO(TAG, "Received request for error counters");
+      _makeTxDataPacket(_txDataQueuedPacket, RTYPE_SEND_ERROR_COUNTERS, &_ec);
+      _queueTxPacket(_txDataQueuedPacket);
+      LOG_INFO(TAG, "Error counters queued for TX");
       break;
-    }
+
 
     case RTYPE_UPDATE_KEYPAD: {
       const int len1 = sizeof(KeypadCommand);

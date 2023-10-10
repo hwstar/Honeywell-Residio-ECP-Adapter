@@ -103,7 +103,9 @@ typedef struct alignas(1) ErrorCounters {
   uint32_t tx_buffer_pool_overflow_errors;
   uint32_t rx_bad_packets;
   uint32_t rx_frame_timeouts;
-  uint32_t pad[3];
+  uint32_t ecp_parity_errors;
+  uint32_t ecp_checksum_errors;
+  uint32_t pad;
 } ErrorCounters;
 
 typedef struct alignas(1) EchoCommand {
