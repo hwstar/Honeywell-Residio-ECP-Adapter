@@ -413,7 +413,7 @@ void Panel::_processDataPacket() {
       LOG_DEBUG(TAG, "Received Hello message from SP8");
       // This releases the TX handler to send packets to the SP8
       _helloReceived = true;
-      _transmitHelloResponse = true;
+      _initiateHelloSequence = true;
       break;
 
     case RTYPE_ECHO: {
@@ -625,6 +625,52 @@ void Panel::_commStateMachine() {
 }
 
 /*
+* Hello state machine.
+*
+* Cycles power to the keypads and waits for their responses
+*/
+
+void Panel::_helloStateMachine() {
+  switch(_helloState) {
+    case HELLO_STATE_IDLE:
+      if (_initiateHelloSequence) {
+        _helloSent = false;
+        _initiateHelloSequence = false;
+        _keypadPowerTimer = millis();
+        LOG_DEBUG(TAG, "Powering off the keypads");
+        digitalWrite(KEYPAD_POWER_ENA, false); // Turn off power to keypads
+        _helloState = HELLO_STATE_WAIT_POWER_OFF_TIME;
+      }
+      break;
+
+    case HELLO_STATE_WAIT_POWER_OFF_TIME:
+      if (TEST_TIMER(_keypadPowerTimer, KEYPAD_POWER_OFF_TIME_MS)) {
+        _messageInactivityTimer = millis();
+        LOG_DEBUG(TAG, "Powering on the keypads");
+        digitalWrite(KEYPAD_POWER_ENA, true); // Turn on power to keypads
+        _helloState = HELLO_STATE_WAIT_KEYPAD_MESSAGES;
+      }
+      break;
+
+    case HELLO_STATE_WAIT_KEYPAD_MESSAGES:
+      if (TEST_TIMER(_messageInactivityTimer, MESSAGE_INACTIVITY_TIME_MS)) {
+        LOG_DEBUG(TAG, "Sending the Hello packet to the SP8");
+        _helloSent = true; // Release the TX queue
+        _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO); // Send HELLO to the SP8
+        _queueTxPacket(_txDataQueuedPacket);
+        _helloState = HELLO_STATE_IDLE;
+      }
+      break;
+
+    default:
+      _helloState = HELLO_STATE_IDLE;
+      break;
+
+  }
+
+}
+
+/*
  * Return a copy of the error counters
  */
 
@@ -638,14 +684,17 @@ void Panel::begin(HardwareSerial *uart) {
   _uart = uart;
   _stuffedRxState = SRX_STATE_IDLE;
   _rxFrameState = RF_STATE_IDLE;
+  _helloState = HELLO_STATE_IDLE;
   _packetState = PRX_STATE_INIT;
   _packetStateFlags = PSF_CLEAR;
   _helloReceived = _helloSent = false;
   _initMessageSent = false;
+  _initiateHelloSequence = false;
   _lastRxSeqNum = _txSeqNum = 0;
   _txDataPoolHead = _txDataPoolTail = 0;
   _txRetries = 0;
-  _txTimer = _initMessageTimer = _messageInactivityTimer = millis();
+  _txTimer = _initMessageTimer = _messageInactivityTimer = _keypadPowerTimer =  millis();
+  
   // Clear error counters
   memset(&_ec, 0, sizeof(ErrorCounters));
 }
@@ -657,7 +706,10 @@ void Panel::begin(HardwareSerial *uart) {
 void Panel::loop() {
   _rxFrame();
   _commStateMachine();
+  _helloStateMachine();
 
+
+/*
   // Handle initialization message delay at power on
   if ((_helloReceived == false) && (_initMessageSent == false)) {
     if (((uint32_t) millis()) - _initMessageTimer > INIT_MESSAGE_DELAY_MS) {
@@ -676,16 +728,17 @@ void Panel::loop() {
     // Send the hello packet by bypassing the queue
     LOG_DEBUG(TAG, "Sending the Hello packet to the SP8");
     _helloSent = true;
-    _transmitHelloResponse = false;
+    _initiateHelloSequence = false;
     _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO);
     _queueTxPacket(_txDataQueuedPacket);
   } else if ((_helloSent == true) &&
-             (_transmitHelloResponse == true)) {  // Case if the SP8 is reset but we stay powered on.
+             (_initiateHelloSequence == true)) {  // Case if the SP8 is reset but we stay powered on.
     LOG_DEBUG(TAG, "Resending the Hello packet to the SP8");
-    _transmitHelloResponse = false;
+    _initiateHelloSequence = false;
     _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO);
     _queueTxPacket(_txDataQueuedPacket);
   }
+*/
 }
 
 void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data,
