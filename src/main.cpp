@@ -101,6 +101,32 @@ void setup() {
   digitalWrite(DEBUG_PIN_ECP_PARITY_ERR, false);
   digitalWrite(KEYPAD_POWER_ENA, false);
 
+  // Unused pin initialization
+
+  pinMode(PA1, OUTPUT);
+  pinMode(PA8, OUTPUT);
+  pinMode(PA11, OUTPUT);
+  pinMode(PA12, OUTPUT);
+  pinMode(PA15, OUTPUT);
+  pinMode(PB15, OUTPUT);
+  pinMode(PB14, OUTPUT);
+  pinMode(PB13, OUTPUT);
+  pinMode(PB12, OUTPUT);
+  pinMode(PB11, OUTPUT);
+  pinMode(PB10, OUTPUT);
+  pinMode(PB9, OUTPUT);
+  pinMode(PB8, OUTPUT);
+  pinMode(PB7, OUTPUT);
+  pinMode(PB6, OUTPUT);
+  pinMode(PB5, OUTPUT);
+  pinMode(PB4, OUTPUT);
+  pinMode(PB3, OUTPUT);
+  pinMode(PB1, OUTPUT);
+  pinMode(PC14, OUTPUT);
+  pinMode(PC15, OUTPUT);
+
+
+
   SerialConsole.begin(115200);
   SerialPanel.begin(19200);
   led.begin();
