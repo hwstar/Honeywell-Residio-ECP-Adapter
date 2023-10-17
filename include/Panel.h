@@ -35,7 +35,7 @@ enum { RX_GOT_NOTHING = 0, RX_GOT_STX, RX_GOT_ETX, RX_GOT_DATA };
 enum { PRX_STATE_INIT = 0, PRX_STATE_IDLE, PRX_TX, PRX_TX_WAIT_ACK };
 enum { RF_STATE_IDLE = 0, RF_WAIT_DATA_ETX, RF_WAIT_CLEAR_FLAGS };
 enum { SRX_STATE_IDLE = 0, SRX_STATE_WAIT_SECOND };
-enum { HELLO_STATE_IDLE = 0, HELLO_STATE_WAIT_POWER_OFF_TIME, HELLO_STATE_WAIT_KEYPAD_MESSAGES };
+enum { PC_STATE_IDLE = 0, PC_STATE_WAIT_POWER_OFF_TIME, PC_STATE_WAIT_KEYPAD_MESSAGES };
 
 class Panel {
  private:
@@ -44,8 +44,6 @@ class Panel {
   PanelPacketAckNak _txAckNakPacket;
   Packet_F7 _f7;
   bool _helloReceived;
-  bool _initiateHelloSequence;
-  bool _helloSent;
   bool _initMessageSent;
   uint8_t _txDataDequeuedPacket[RAW_PACKET_BUFFER_SIZE];
   uint8_t _txDataQueuedPacket[RAW_PACKET_BUFFER_SIZE];
@@ -55,7 +53,6 @@ class Panel {
   uint8_t _txDataPoolHead;
   uint8_t _txDataPoolTail;
   uint8_t _txPacketPool[TX_DATA_PACKET_POOL_SIZE][RAW_PACKET_BUFFER_SIZE];
-  uint8_t _helloState;
   uint8_t _stuffedRxState;
   uint8_t _rxFrameState;
   uint8_t _rxFrameIndex;
@@ -85,8 +82,7 @@ class Panel {
   void _txFrame(void *tx_packet_in);
   void _processDataPacket();
   void _reportCbusLinkError();
-  void _helloStateMachine();
-
+  
   uint16_t _crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly = 0x1021, bool refin = false,
                   bool refout = false);
 
