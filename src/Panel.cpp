@@ -113,6 +113,11 @@ void Panel::_makeTxDataPacket(uint8_t *buffer, uint8_t record_type, void *data) 
       clipped_data_len = sizeof(EchoCommand);
       break;
 
+    case RTYPE_CONN_KEYPADS:
+      LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_CONN_KEYPADS");
+      clipped_data_len = sizeof(PanelKeypadInfo);
+      break;
+
     default:
       LOG_ERROR(TAG, "makeTxPacket() received unhandled record type: %d", record_type);
       return;  // Don't know what the record type is
@@ -441,10 +446,10 @@ void Panel::_processDataPacket() {
       _ec.ecp_checksum_errors = seq.getChecksumErrorCount(false);
       _ec.ecp_parity_errors = seq.getParityErrorCount(false);
       // Send the error counters
-      LOG_INFO(TAG, "Received request for error counters");
+      LOG_DEBUG(TAG, "Received request for error counters");
       _makeTxDataPacket(_txDataQueuedPacket, RTYPE_SEND_ERROR_COUNTERS, &_ec);
       _queueTxPacket(_txDataQueuedPacket);
-      LOG_INFO(TAG, "Error counters queued for TX");
+      LOG_DEBUG(TAG, "Error counters queued for TX");
       break;
 
 
@@ -479,6 +484,14 @@ void Panel::_processDataPacket() {
       }
       break;
     }
+
+    case RTYPE_CONN_KEYPADS:
+      LOG_DEBUG(TAG, "Received request for connected keypads");
+      _makeTxDataPacket(_txDataQueuedPacket, RTYPE_CONN_KEYPADS, &_keypadInfo);
+      _queueTxPacket(_txDataQueuedPacket);
+      LOG_DEBUG(TAG, "Connected keypads data queued for TX");
+      break;
+
 
     default:
       break;
@@ -683,25 +696,13 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
   LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
 
   if(record_type == KEYPAD_RECORD_TYPE_PRESENT) {
-    const char *model = NULL;
+  
     // Case for keypad addresses
     
     if ((record_data[0] >= 16) && (record_data[0] <= 23)) {
       uint8_t index = record_data[0] & 0x07; // Make index from address
-      if ((record_data[4] == 0x04) && (record_data[5] == 0x04) && (record_data[6] == 0x04)) {
-        model = "6160";
-      }
-      else if((record_data[4] == 0x04) && (record_data[5] == 0x06) && (record_data[6] == 0x04)) {
-        model = "6139";
-      }
-      else {
-        return; // Unknown keypad type
-      }
-      // Copy model string and length
-      LOG_DEBUG(TAG, "Adding keypad model: %s", model);
-      uint8_t model_len = (strlen(model) > KP_MODEL_LEN) ? KP_MODEL_LEN : strlen(model);
-      _keypadInfo.info[index].length = model_len;
-      memcpy(_keypadInfo.info[index].model, model, model_len);
+      _keypadInfo.info[index].valid = 1;
+      memcpy(_keypadInfo.info[index].model, record_data + 1, KP_MODEL_LEN);
     }
     return; 
   }

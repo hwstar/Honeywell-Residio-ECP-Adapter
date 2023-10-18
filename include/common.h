@@ -58,7 +58,7 @@ enum {
   CHIME_LOUD
 };
 enum { KEYPAD_RECORD_TYPE_PRESENT = 0, KEYPAD_RECORD_KEYS };
-enum { RTYPE_HELLO = 0, RTYPE_SEND_ERROR_COUNTERS, RTYPE_UPDATE_KEYPAD, RTYPE_DATA_FROM_KEYPAD, RTYPE_ECHO };
+enum { RTYPE_HELLO = 0, RTYPE_SEND_ERROR_COUNTERS, RTYPE_UPDATE_KEYPAD, RTYPE_DATA_FROM_KEYPAD, RTYPE_ECHO, RTYPE_CONN_KEYPADS };
 
 /*
  * Structs used in communication with the panel
@@ -105,7 +105,7 @@ typedef struct alignas(1) PanelKeyboardEvent {
 
 
 typedef struct alignas(1) PanelKeypadType {
-  uint8_t length;
+  uint8_t valid;
   uint8_t model[KP_MODEL_LEN];
 } PanelKeypadType;
 
