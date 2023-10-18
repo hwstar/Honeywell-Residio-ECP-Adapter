@@ -9,6 +9,10 @@
 
 #define LOG_LEVEL LOG_LEVEL_DEBUG
 
+#define KP_MODEL_LEN 6
+
+#define KP_INFO_MAX_KEYPADS 8
+
 /*
  *  Pin assignments
  */
@@ -98,6 +102,16 @@ typedef struct alignas(1) PanelKeyboardEvent {
   uint8_t record_data_length;
   uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
 } PanelKeyboardEvent;
+
+
+typedef struct alignas(1) PanelKeypadType {
+  uint8_t length;
+  uint8_t model[KP_MODEL_LEN];
+} PanelKeypadType;
+
+typedef struct alignas(1) PanelKeypadInfo {
+  PanelKeypadType info[KP_INFO_MAX_KEYPADS];
+} PanelKeypadInfo;
 
 typedef struct alignas(1) ErrorCounters {
   uint32_t tx_soft_errors;

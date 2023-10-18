@@ -41,6 +41,7 @@ class Panel {
  private:
   HardwareSerial *_uart;
   ErrorCounters _ec;
+  PanelKeypadInfo _keypadInfo;
   PanelPacketAckNak _txAckNakPacket;
   Packet_F7 _f7;
   bool _helloReceived;

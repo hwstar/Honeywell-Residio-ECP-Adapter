@@ -650,6 +650,9 @@ void Panel::begin(HardwareSerial *uart) {
   _txRetries = 0;
   _txTimer = _initMessageTimer = _messageInactivityTimer = _keypadPowerTimer =  millis();
   
+  // Clear keypad info
+  memset(&_keypadInfo, 0, sizeof(PanelKeypadInfo));
+
   // Clear error counters
   memset(&_ec, 0, sizeof(ErrorCounters));
 }
@@ -680,7 +683,27 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
   LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
 
   if(record_type == KEYPAD_RECORD_TYPE_PRESENT) {
-    return; // TODO: handle storage of keypad present data
+    const char *model = NULL;
+    // Case for keypad addresses
+    
+    if ((record_data[0] >= 16) && (record_data[0] <= 23)) {
+      uint8_t index = record_data[0] & 0x07; // Make index from address
+      if ((record_data[4] == 0x04) && (record_data[5] == 0x04) && (record_data[6] == 0x04)) {
+        model = "6160";
+      }
+      else if((record_data[4] == 0x04) && (record_data[5] == 0x06) && (record_data[6] == 0x04)) {
+        model = "6139";
+      }
+      else {
+        return; // Unknown keypad type
+      }
+      // Copy model string and length
+      LOG_DEBUG(TAG, "Adding keypad model: %s", model);
+      uint8_t model_len = (strlen(model) > KP_MODEL_LEN) ? KP_MODEL_LEN : strlen(model);
+      _keypadInfo.info[index].length = model_len;
+      memcpy(_keypadInfo.info[index].model, model, model_len);
+    }
+    return; 
   }
   else if (record_type != KEYPAD_RECORD_KEYS) {
     return; // Unknown record type
