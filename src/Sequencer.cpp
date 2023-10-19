@@ -25,7 +25,8 @@ uint8_t Sequencer::_readBytes(uint8_t *buffer, uint8_t byte_count) {
   for (i = 0; i < byte_count;) {
     if (pEcp->available()) {
       buffer[i++] = pEcp->read();
-    } else if (((uint32_t) millis()) - readStartTime > SEQ_READ_TIMEOUT_TIME_MS) {
+    } 
+    else if (TEST_TIMER(readStartTime, SEQ_READ_TIMEOUT_TIME_MS)) {
       return 0;
     }
   }
@@ -62,7 +63,7 @@ void Sequencer::_handleECP() {
   switch (state) {
     case SEQ_STATE_IDLE:
       // Wait for poll interval timer to expire
-      if (millis() - pollInactiveTime > DELAY_POLL_INACTIVE_MS) {
+      if (TEST_TIMER(pollInactiveTime, DELAY_POLL_INACTIVE_MS)) {
         digitalWrite(DEBUG_PIN_ECP_PARITY_ERR, 0);
         pEcp->initiateKeypadPollSequence();
         state = SEQ_STATE_WAIT_POLL_CYCLE;
@@ -113,7 +114,7 @@ void Sequencer::_handleECP() {
 
     case SEQ_STATE_WAIT_BEFORE_F6:
       // Wait here until the  wait before F6 timer expires
-      if (((uint32_t) millis() - pollWaitTime) >= DELAY_KEYPAD_POLL_TO_F6_MS) {
+      if (TEST_TIMER(pollWaitTime, DELAY_KEYPAD_POLL_TO_F6_MS)) {
         // Start the F6 sequence
         pEcp->initiateNewCommand();
         state = SEQ_STATE_WAIT_F6_TIMER;
@@ -240,8 +241,8 @@ void Sequencer::_handleECP() {
       break;
 
     case SEQ_WAIT_BEFORE_F7:
-      // Wait before sending F7 packet
-      if ((((uint32_t) millis()) - pollWaitTime) >= DELAY_KEYPAD_POLL_TO_F6_MS) {
+        // Wait before sending F7 packet
+        if (TEST_TIMER(pollWaitTime, DELAY_KEYPAD_POLL_TO_F6_MS)) {
         // Tell the keypad we are going to send a command
         pEcp->initiateNewCommand();
         state = SEQ_WAIT_INIT_COMMAND;

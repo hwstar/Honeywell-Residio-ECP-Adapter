@@ -316,7 +316,7 @@ void Panel::_rxFrame() {
       break;
 
     case RF_WAIT_DATA_ETX:
-      if (((uint32_t) millis()) - _rxFrameTimer > RX_FRAME_TIMEOUT_MS) {
+        if (TEST_TIMER(_rxFrameTimer, RX_FRAME_TIMEOUT_MS)) {
         // We timed out, start over
         _ec.rx_frame_timeouts++;
         _rxFrameState = RF_STATE_IDLE;
