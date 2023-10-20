@@ -657,11 +657,10 @@ void Panel::begin(HardwareSerial *uart) {
   _packetState = PRX_STATE_INIT;
   _packetStateFlags = PSF_CLEAR;
   _helloReceived = false;
-  _initMessageSent = false;
   _lastRxSeqNum = _txSeqNum = 0;
   _txDataPoolHead = _txDataPoolTail = 0;
   _txRetries = 0;
-  _txTimer = _initMessageTimer = _messageInactivityTimer = _keypadPowerTimer =  millis();
+  _txTimer = _messageInactivityTimer = _keypadPowerTimer =  millis();
   
   // Clear keypad info
   memset(&_keypadInfo, 0, sizeof(PanelKeypadInfo));

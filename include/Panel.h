@@ -45,7 +45,6 @@ class Panel {
   PanelPacketAckNak _txAckNakPacket;
   Packet_F7 _f7;
   bool _helloReceived;
-  bool _initMessageSent;
   uint8_t _txDataDequeuedPacket[RAW_PACKET_BUFFER_SIZE];
   uint8_t _txDataQueuedPacket[RAW_PACKET_BUFFER_SIZE];
   uint8_t _rxDataPacket[RAW_PACKET_BUFFER_SIZE];
@@ -64,7 +63,6 @@ class Panel {
   uint8_t _txRetries;
   uint32_t _rxFrameTimer;
   uint32_t _txTimer;
-  uint32_t _initMessageTimer;
   uint32_t _ecpLedFlashTimer;
   uint32_t _cbusLedFlashTimer;
   uint32_t _messageInactivityTimer;
