@@ -81,7 +81,7 @@ class Panel {
   void _txFrame(void *tx_packet_in);
   void _processDataPacket();
   void _reportCbusLinkError();
-  
+
   uint16_t _crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly = 0x1021, bool refin = false,
                   bool refout = false);
 

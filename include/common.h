@@ -34,7 +34,7 @@
 #define ECP_COMM_LED PC13
 #define CBUS_COMM_LED PA0
 
-#define KEYPAD_POWER_ENA PB0          // Controls power to keypads. Used to force retrieval of power on information.
+#define KEYPAD_POWER_ENA PB0  // Controls power to keypads. Used to force retrieval of power on information.
 
 /*
  * Macros
@@ -58,7 +58,14 @@ enum {
   CHIME_LOUD
 };
 enum { KEYPAD_RECORD_TYPE_PRESENT = 0, KEYPAD_RECORD_KEYS };
-enum { RTYPE_HELLO = 0, RTYPE_SEND_ERROR_COUNTERS, RTYPE_UPDATE_KEYPAD, RTYPE_DATA_FROM_KEYPAD, RTYPE_ECHO, RTYPE_CONN_KEYPADS };
+enum {
+  RTYPE_HELLO = 0,
+  RTYPE_SEND_ERROR_COUNTERS,
+  RTYPE_UPDATE_KEYPAD,
+  RTYPE_DATA_FROM_KEYPAD,
+  RTYPE_ECHO,
+  RTYPE_CONN_KEYPADS
+};
 
 /*
  * Structs used in communication with the panel
@@ -102,7 +109,6 @@ typedef struct alignas(1) PanelKeyboardEvent {
   uint8_t record_data_length;
   uint8_t record_data[MAX_KEYPAD_DATA_LENGTH];
 } PanelKeyboardEvent;
-
 
 typedef struct alignas(1) PanelKeypadType {
   uint8_t valid;

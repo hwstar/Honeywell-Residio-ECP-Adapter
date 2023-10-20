@@ -25,8 +25,7 @@ uint8_t Sequencer::_readBytes(uint8_t *buffer, uint8_t byte_count) {
   for (i = 0; i < byte_count;) {
     if (pEcp->available()) {
       buffer[i++] = pEcp->read();
-    } 
-    else if (TEST_TIMER(readStartTime, SEQ_READ_TIMEOUT_TIME_MS)) {
+    } else if (TEST_TIMER(readStartTime, SEQ_READ_TIMEOUT_TIME_MS)) {
       return 0;
     }
   }
@@ -124,7 +123,6 @@ void Sequencer::_handleECP() {
     case SEQ_STATE_WAIT_F6_TIMER:
       // Wait for the poll sequence to finish
       if (!pEcp->getKeypadPollBusy()) {
-
         // We can now send the F6 command
         packet[0] = 0xF6;
         packet[1] = keypadAddress;
@@ -241,8 +239,8 @@ void Sequencer::_handleECP() {
       break;
 
     case SEQ_WAIT_BEFORE_F7:
-        // Wait before sending F7 packet
-        if (TEST_TIMER(pollWaitTime, DELAY_KEYPAD_POLL_TO_F6_MS)) {
+      // Wait before sending F7 packet
+      if (TEST_TIMER(pollWaitTime, DELAY_KEYPAD_POLL_TO_F6_MS)) {
         // Tell the keypad we are going to send a command
         pEcp->initiateNewCommand();
         state = SEQ_WAIT_INIT_COMMAND;

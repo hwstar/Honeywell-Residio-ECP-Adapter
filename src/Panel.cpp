@@ -22,7 +22,7 @@ void Panel::_logDebugHex(const char *desc, void *p, uint32_t length) {
     if (length % 16) {
       lines++;
     }
-    
+
   } else {
     lines = 1;
   }
@@ -316,7 +316,7 @@ void Panel::_rxFrame() {
       break;
 
     case RF_WAIT_DATA_ETX:
-        if (TEST_TIMER(_rxFrameTimer, RX_FRAME_TIMEOUT_MS)) {
+      if (TEST_TIMER(_rxFrameTimer, RX_FRAME_TIMEOUT_MS)) {
         // We timed out, start over
         _ec.rx_frame_timeouts++;
         _rxFrameState = RF_STATE_IDLE;
@@ -418,7 +418,7 @@ void Panel::_processDataPacket() {
       LOG_DEBUG(TAG, "Received Hello message from SP8");
       // This releases the TX handler to send packets to the SP8
       _helloReceived = true;
-      _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO); // Send response to the SP8
+      _makeTxDataPacket(_txDataQueuedPacket, RTYPE_HELLO);  // Send response to the SP8
       _queueTxPacket(_txDataQueuedPacket);
       break;
 
@@ -451,7 +451,6 @@ void Panel::_processDataPacket() {
       _queueTxPacket(_txDataQueuedPacket);
       LOG_DEBUG(TAG, "Error counters queued for TX");
       break;
-
 
     case RTYPE_UPDATE_KEYPAD: {
       const int len1 = sizeof(KeypadCommand);
@@ -491,7 +490,6 @@ void Panel::_processDataPacket() {
       _queueTxPacket(_txDataQueuedPacket);
       LOG_DEBUG(TAG, "Connected keypads data queued for TX");
       break;
-
 
     default:
       break;
@@ -638,7 +636,6 @@ void Panel::_commStateMachine() {
   }
 }
 
-
 /*
  * Return a copy of the error counters
  */
@@ -650,7 +647,7 @@ void Panel::getErrorCounters(ErrorCounters *dest) { memcpy(dest, &_ec, sizeof(Er
  */
 
 void Panel::begin(HardwareSerial *uart) {
-  digitalWrite(KEYPAD_POWER_ENA, true); // Turn on power to keypads
+  digitalWrite(KEYPAD_POWER_ENA, true);  // Turn on power to keypads
   _uart = uart;
   _stuffedRxState = SRX_STATE_IDLE;
   _rxFrameState = RF_STATE_IDLE;
@@ -660,8 +657,8 @@ void Panel::begin(HardwareSerial *uart) {
   _lastRxSeqNum = _txSeqNum = 0;
   _txDataPoolHead = _txDataPoolTail = 0;
   _txRetries = 0;
-  _txTimer = _messageInactivityTimer = _keypadPowerTimer =  millis();
-  
+  _txTimer = _messageInactivityTimer = _keypadPowerTimer = millis();
+
   // Clear keypad info
   memset(&_keypadInfo, 0, sizeof(PanelKeypadInfo));
 
@@ -678,8 +675,6 @@ void Panel::loop() {
   _commStateMachine();
 }
 
-
-
 void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_data_length, uint8_t *record_data,
                       uint8_t action) {
   PanelKeyboardEvent pke;
@@ -694,22 +689,19 @@ void Panel::messageIn(uint8_t record_type, uint8_t keypad_addr, uint8_t record_d
 
   LOG_DEBUG(TAG, "Received message in, record type: %u, record data length %u", record_type, record_data_length);
 
-  if(record_type == KEYPAD_RECORD_TYPE_PRESENT) {
-  
+  if (record_type == KEYPAD_RECORD_TYPE_PRESENT) {
     // Case for keypad addresses
-    
+
     if ((record_data[0] >= 16) && (record_data[0] <= 23)) {
-      uint8_t index = record_data[0] & 0x07; // Make index from address
+      uint8_t index = record_data[0] & 0x07;  // Make index from address
       _keypadInfo.info[index].valid = 1;
       memcpy(_keypadInfo.info[index].model, record_data + 1, KP_MODEL_LEN);
     }
-    return; 
+    return;
+  } else if (record_type != KEYPAD_RECORD_KEYS) {
+    return;  // Unknown record type
   }
-  else if (record_type != KEYPAD_RECORD_KEYS) {
-    return; // Unknown record type
-  }
-  
- 
+
   memset(pke.record_data, 0xFF, MAX_KEYPAD_DATA_LENGTH);
   uint8_t clipped_record_data_length =
       (record_data_length > MAX_KEYPAD_DATA_LENGTH) ? MAX_KEYPAD_DATA_LENGTH : record_data_length;

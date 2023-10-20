@@ -125,8 +125,6 @@ void setup() {
   pinMode(PC14, OUTPUT);
   pinMode(PC15, OUTPUT);
 
-
-
   SerialConsole.begin(115200);
   SerialPanel.begin(19200);
   led.begin();
