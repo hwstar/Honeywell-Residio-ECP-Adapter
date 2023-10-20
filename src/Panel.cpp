@@ -12,6 +12,8 @@
 extern Sequencer seq;
 extern Led led;
 
+const VersionInfo _versionInfo = {DEVICE_ID, VERSION_MAJOR, VERSION_MID, VERSION_MINOR};
+
 void Panel::_logDebugHex(const char *desc, void *p, uint32_t length) {
   char hex_string[16 * 3 + 1];
   uint32_t lines;
@@ -74,7 +76,7 @@ uint16_t Panel::_crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t
  * Make a TX packet from payload data
  */
 
-void Panel::_makeTxDataPacket(uint8_t *buffer, uint8_t record_type, void *data) {
+void Panel::_makeTxDataPacket(uint8_t *buffer, uint8_t record_type, const void *data) {
   uint8_t clipped_data_len;
   uint8_t payload_bytes_remaining;
   PanelPacketHeader *p = (PanelPacketHeader *) _txDataQueuedPacket;
@@ -116,6 +118,11 @@ void Panel::_makeTxDataPacket(uint8_t *buffer, uint8_t record_type, void *data) 
     case RTYPE_CONN_KEYPADS:
       LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_CONN_KEYPADS");
       clipped_data_len = sizeof(PanelKeypadInfo);
+      break;
+
+    case RTYPE_VERSION:
+      LOG_DEBUG(TAG, "makeTxPacket() making packet RTYPE_VERSION");
+      clipped_data_len = sizeof(VersionInfo);
       break;
 
     default:
@@ -488,7 +495,12 @@ void Panel::_processDataPacket() {
       LOG_DEBUG(TAG, "Received request for connected keypads");
       _makeTxDataPacket(_txDataQueuedPacket, RTYPE_CONN_KEYPADS, &_keypadInfo);
       _queueTxPacket(_txDataQueuedPacket);
-      LOG_DEBUG(TAG, "Connected keypads data queued for TX");
+      break;
+
+    case RTYPE_VERSION:
+      LOG_DEBUG(TAG, "Received request for verson information");
+      _makeTxDataPacket(_txDataQueuedPacket, RTYPE_VERSION, &_versionInfo);
+      _queueTxPacket(_txDataQueuedPacket);
       break;
 
     default:

@@ -1,6 +1,11 @@
 #pragma once
 #include <Arduino.h>
 
+#define DEVICE_ID 0
+#define VERSION_MAJOR 0
+#define VERSION_MID 0
+#define VERSION_MINOR 1
+
 #define MAX_KEYPAD_LINE 16
 
 #define ADDR_ALL_KEYPADS 255
@@ -64,12 +69,20 @@ enum {
   RTYPE_UPDATE_KEYPAD,
   RTYPE_DATA_FROM_KEYPAD,
   RTYPE_ECHO,
-  RTYPE_CONN_KEYPADS
+  RTYPE_CONN_KEYPADS,
+  RTYPE_VERSION
 };
 
 /*
  * Structs used in communication with the panel
  */
+
+typedef struct alignas(1) VersionInfo {
+  uint8_t device_id;
+  uint8_t version_major;
+  uint8_t version_mid;
+  uint8_t version_minor;
+} VersionInfo;
 
 typedef struct alignas(1) PanelPacketAckNak {
   uint8_t type;

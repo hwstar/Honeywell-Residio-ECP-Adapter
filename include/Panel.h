@@ -69,7 +69,7 @@ class Panel {
   uint32_t _keypadPowerTimer;
 
   void _logDebugHex(const char *dest, void *p, uint32_t length);
-  void _makeTxDataPacket(uint8_t *buffer, uint8_t record_type, void *data = NULL);
+  void _makeTxDataPacket(uint8_t *buffer, uint8_t record_type, const void *data = NULL);
   void _makeTxAckNakPacket(uint8_t data_type, uint8_t seq_num);
   bool _queueTxPacket(void *tx_packet_in);
   bool _deQueueTxPacket(void *tx_packet_out);
