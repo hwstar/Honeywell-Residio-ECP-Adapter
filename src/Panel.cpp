@@ -659,6 +659,7 @@ void Panel::getErrorCounters(ErrorCounters *dest) { memcpy(dest, &_ec, sizeof(Er
  */
 
 void Panel::begin(HardwareSerial *uart) {
+  delay(KEYPAD_POWER_ON_DELAY_MS);
   digitalWrite(KEYPAD_POWER_ENA, true);  // Turn on power to keypads
   _uart = uart;
   _stuffedRxState = SRX_STATE_IDLE;
